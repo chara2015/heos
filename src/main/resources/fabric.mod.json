@@ -3,14 +3,14 @@
   "id": "heos",
   "version": "${version}",
   "name": "Heos Mod",
-  "description": "A lightweight Minecraft server mod",
+  "description": "A lightweight Minecraft server authentication mod with hybrid online/offline support",
   "authors": [
-    "NikitaCartes"
+    "Your Name"
   ],
   "contact": {
-    "homepage": "https://github.com/NikitaCartes/Heos",
-    "sources": "https://github.com/NikitaCartes/Heos",
-    "issues": "https://github.com/NikitaCartes/Heos/issues"
+    "homepage": "https://github.com/YourUsername/Heos",
+    "sources": "https://github.com/YourUsername/Heos",
+    "issues": "https://github.com/YourUsername/Heos/issues"
   },
   "license": "MIT",
   "environment": "server",

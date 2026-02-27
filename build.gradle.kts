@@ -126,7 +126,7 @@ publishMods {
     val curseforgeToken = System.getenv("CURSEFORGE_TOKEN") ?: ""
 
     file = tasks.remapJar.get().archiveFile
-    dryRun = modrinthToken.isEmpty() || curseforgeToken.isEmpty()
+    dryRun = true // Disabled by default - set your own project IDs
 
     displayName = "${property("display_name")} $dynamicVersion"
     version = dynamicVersion
@@ -138,7 +138,7 @@ publishMods {
     val targets = property("supported_versions").toString().split(",")
 
     modrinth {
-        projectId = "aZj58GfX"
+        projectId = "YOUR_MODRINTH_PROJECT_ID" // Replace with your project ID
         accessToken = modrinthToken
 
         targets.forEach(minecraftVersions::add)
@@ -146,7 +146,7 @@ publishMods {
     }
 
     curseforge {
-        projectId = "503866"
+        projectId = "YOUR_CURSEFORGE_PROJECT_ID" // Replace with your project ID
         accessToken = curseforgeToken
 
         targets.forEach(minecraftVersions::add)
