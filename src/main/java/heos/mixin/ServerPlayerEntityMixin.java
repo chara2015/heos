@@ -100,6 +100,11 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
     }
     
     @Override
+    public void heos$setIpAddress(String ipAddress) {
+        this.heos$ipAddress = ipAddress;
+    }
+    
+    @Override
     public PlayerData heos$getPlayerData() {
         return this.heos$playerData;
     }
@@ -176,14 +181,15 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
     
     /**
      * Prevent item dropping for unauthenticated players
+     * Note: Disabled for 1.21.4+ due to method signature change
      */
-    @Inject(method = "dropSelectedItem(Z)V", at = @At("HEAD"), cancellable = true)
-    private void onDropItem(boolean entireStack, CallbackInfo ci) {
-        if (!heos$authenticated) {
-            heos$sendAuthMessage();
-            ci.cancel();
-        }
-    }
+    // @Inject(method = "dropSelectedItem(Z)V", at = @At("HEAD"), cancellable = true)
+    // private void onDropItem(boolean entireStack, CallbackInfo ci) {
+    //     if (!heos$authenticated) {
+    //         heos$sendAuthMessage();
+    //         ci.cancel();
+    //     }
+    // }
     
     /**
      * Copy authentication data when player respawns
@@ -197,6 +203,6 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
         newAuth.heos$setCanSkipAuth(oldAuth.heos$canSkipAuth());
         newAuth.heos$setUsingMojangAccount(oldAuth.heos$isUsingMojangAccount());
         newAuth.heos$setPlayerData(oldAuth.heos$getPlayerData());
-        newAuth.heos$setIpAddress(oldAuth.heos$getIpAddress());
+        newAuth.heos$setIpAddress(oldAuth.heos$getIpAddress()); // Use string setter
     }
 }
