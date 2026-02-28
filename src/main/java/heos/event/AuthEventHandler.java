@@ -27,8 +27,13 @@ public class AuthEventHandler {
                 || packet instanceof ClientOptionsC2SPacket
                 || packet instanceof AcknowledgeChunksC2SPacket
                 || packet instanceof AcknowledgeReconfigurationC2SPacket
+                //? if >= 1.21.2 {
                 || packet instanceof ClientTickEndC2SPacket
-                || packet instanceof PlayerLoadedC2SPacket) {
+                //?}
+                //? if >= 1.21.5 {
+                /*|| packet instanceof PlayerLoadedC2SPacket
+                *///?}
+        ) {
             return true;
         }
         

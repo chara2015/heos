@@ -3,8 +3,10 @@ package heos.mixin;
 import com.mojang.authlib.GameProfile;
 import heos.Heos;
 import heos.integrations.MojangApi;
+import heos.storage.BanData;
 import heos.storage.PlayerData;
 import heos.utils.HeosLogger;
+import heos.utils.TimeParser;
 import net.minecraft.network.packet.c2s.login.LoginHelloC2SPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerLoginNetworkHandler;
@@ -17,6 +19,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import org.spongepowered.asm.mixin.Unique;
+
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -32,9 +37,60 @@ public abstract class ServerLoginNetworkHandlerMixin {
     @Shadow
     private ServerLoginNetworkHandler.State state;
     
-    @Final
     @Shadow
+    @Final
     MinecraftServer server;
+    
+    @Shadow
+    public abstract String getConnectionInfo();
+    
+    /**
+     * Check for bans before allowing login
+     */
+    @Inject(
+        method = "onHello(Lnet/minecraft/network/packet/c2s/login/LoginHelloC2SPacket;)V",
+        at = @At("HEAD"),
+        cancellable = true
+    )
+    private void checkBan(LoginHelloC2SPacket packet, CallbackInfo ci) {
+        if (!Heos.getConfig().enableCustomBan) {
+            return; // Custom ban system disabled
+        }
+        
+        String username = packet.name();
+        BanData banData = Heos.getBanData();
+        
+        // Get IP address
+        String ip = getConnectionInfo();
+        if (ip.contains("/")) {
+            ip = ip.substring(ip.indexOf('/') + 1);
+        }
+        if (ip.contains(":")) {
+            ip = ip.substring(0, ip.indexOf(':'));
+        }
+        
+        // Check IP ban first
+        BanData.IpBanEntry ipBan = banData.getIpBan(ip);
+        if (ipBan != null) {
+            String message = Heos.getConfig().banIpMessageFormat
+                .replace("%reason%", ipBan.reason)
+                .replace("%expiry%", TimeParser.formatAbsoluteTime(ipBan.expiryTime));
+            ((ServerLoginNetworkHandler)(Object)this).disconnect(Text.literal(message));
+            ci.cancel();
+            return;
+        }
+        
+        // Check player ban
+        BanData.BanEntry playerBan = banData.getPlayerBan(username, null);
+        if (playerBan != null) {
+            String message = Heos.getConfig().banMessageFormat
+                .replace("%reason%", playerBan.reason)
+                .replace("%expiry%", TimeParser.formatAbsoluteTime(playerBan.expiryTime));
+            ((ServerLoginNetworkHandler)(Object)this).disconnect(Text.literal(message));
+            ci.cancel();
+            return;
+        }
+    }
     
     /**
      * Intercepts login process to check if player should use offline mode
@@ -59,7 +115,8 @@ public abstract class ServerLoginNetworkHandlerMixin {
         // Check if username contains special characters (offline player indicator)
         if (!MojangApi.isValidMojangUsername(username)) {
             HeosLogger.info("Player " + username + " has invalid Mojang username format, treating as offline");
-            allowOfflineLogin(username);
+            this.state = ServerLoginNetworkHandler.State.VERIFYING;
+            this.profile = new GameProfile(Uuids.getOfflinePlayerUuid(username), username);
             ci.cancel();
             return;
         }
@@ -99,9 +156,7 @@ public abstract class ServerLoginNetworkHandlerMixin {
         }
         
         // Mojang account exists, verify UUID matches
-        UUID clientUuid = packet.profileId().orElse(null);
-        
-        if (clientUuid != null && clientUuid.equals(mojangUuid)) {
+        if (checkUuid(packet.profileId(), mojangUuid)) {
             // Valid premium player
             HeosLogger.info("Player " + username + " verified as premium");
             data.isOnlineAccount = true;
@@ -130,10 +185,18 @@ public abstract class ServerLoginNetworkHandlerMixin {
     }
     
     /**
-     * Allows player to login in offline mode
+     * Checks UUID match - overload for UUID (pre-1.20.2)
      */
-    private void allowOfflineLogin(String username) {
-        this.profile = new GameProfile(Uuids.getOfflinePlayerUuid(username), username);
-        this.state = ServerLoginNetworkHandler.State.VERIFYING;
+    @Unique
+    private boolean checkUuid(UUID uuid, UUID onlineUuid) {
+        return uuid != null && uuid.equals(onlineUuid);
+    }
+    
+    /**
+     * Checks UUID match - overload for Optional<UUID> (1.20.2+)
+     */
+    @Unique
+    private boolean checkUuid(Optional<UUID> uuid, UUID onlineUuid) {
+        return uuid.isPresent() && uuid.get().equals(onlineUuid);
     }
 }

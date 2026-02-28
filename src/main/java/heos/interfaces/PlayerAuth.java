@@ -49,6 +49,11 @@ public interface PlayerAuth {
     void heos$setIpAddress(ClientConnection connection);
     
     /**
+     * Sets the player's IP address directly
+     */
+    void heos$setIpAddress(String ipAddress);
+    
+    /**
      * Gets player data
      */
     PlayerData heos$getPlayerData();

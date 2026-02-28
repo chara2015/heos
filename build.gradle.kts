@@ -4,6 +4,7 @@ plugins {
     kotlin("jvm") version "2.2.0"
     id("fabric-loom") version "1.14-SNAPSHOT"
     id("com.google.devtools.ksp") version "2.2.0-2.0.2"
+    id("dev.kikugie.stonecutter")
     id("me.modmuss50.mod-publish-plugin") version "0.8.4"
 }
 
@@ -25,13 +26,26 @@ repositories {
 
 base.archivesName = "${property("mod_id")}-mc${property("minecraft_version")}"
 
+val awFile = when {
+    stonecutter.eval(stonecutter.current.version, ">=1.21.11") -> "heos.1.21.11.accesswidener"
+    stonecutter.eval(stonecutter.current.version, ">=1.21.5") -> "heos.1.21.5.accesswidener"
+    stonecutter.eval(stonecutter.current.version, ">=1.21.2") -> "heos.1.21.2.accesswidener"
+    stonecutter.eval(stonecutter.current.version, ">=1.20.3") -> "heos.1.20.3.accesswidener"
+    stonecutter.eval(stonecutter.current.version, ">=1.19.4") -> "heos.1.19.4.accesswidener"
+    else -> throw GradleException("Access widener is missing for Minecraft ${stonecutter.current.version})")
+}
+
 java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
 }
 
 loom {
     splitEnvironmentSourceSets()
+    accessWidenerPath = rootProject.file("src/main/resources/accesswidener/$awFile")
     mods {
         create("heos") {
             sourceSet(sourceSets["main"])
@@ -91,7 +105,8 @@ tasks.processResources {
         expand(
             mapOf(
                 "version" to dynamicVersion,
-                "supported_minecraft_version" to project.property("supported_minecraft_version")
+                "supported_minecraft_version" to project.property("supported_minecraft_version"),
+                "accessWidener" to awFile
             )
         )
     }
