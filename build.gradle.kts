@@ -8,7 +8,16 @@ plugins {
     id("me.modmuss50.mod-publish-plugin") version "0.8.4"
 }
 
-val baseVersion = property("mod_version").toString()
+val modMetadata = loadHeosmodMetadata(rootProject.file("src/main/java/heos/Heosmod.java"))
+val modId = modMetadata.getValue("MOD_ID")
+val modName = modMetadata.getValue("MOD_NAME")
+val baseVersion = modMetadata.getValue("MOD_VERSION")
+val modDescription = modMetadata.getValue("MOD_DESCRIPTION")
+val modAuthor = modMetadata.getValue("MOD_AUTHOR")
+val modLicense = modMetadata.getValue("MOD_LICENSE")
+val modHomepage = modMetadata.getValue("MOD_HOMEPAGE")
+val modSources = modMetadata.getValue("MOD_SOURCES")
+val modIssues = modMetadata.getValue("MOD_ISSUES")
 val dynamicVersion = if (baseVersion.endsWith("-SNAPSHOT")) {
     val lastReleaseTag = runGit("describe", "--tags", "--match", "[0-9]*.[0-9]*.[0-9]*", "--abbrev=0")
     if (lastReleaseTag != null) {
@@ -24,7 +33,7 @@ repositories {
     maven(url = "https://oss.sonatype.org/content/repositories/snapshots")
 }
 
-base.archivesName = "${property("mod_id")}-mc${property("minecraft_version")}"
+base.archivesName = "${modId}-mc${property("minecraft_version")}"
 
 val awFile = when {
     stonecutter.eval(stonecutter.current.version, ">=1.21.11") -> "heos.1.21.11.accesswidener"
@@ -47,7 +56,7 @@ loom {
     splitEnvironmentSourceSets()
     accessWidenerPath = rootProject.file("src/main/resources/accesswidener/$awFile")
     mods {
-        create("heos") {
+        create(modId) {
             sourceSet(sourceSets["main"])
             sourceSet(sourceSets["client"])
         }
@@ -66,7 +75,7 @@ loom {
 
 fabricApi.configureTests {
     createSourceSet = true
-    modId = "${property("mod_id")}-test"
+    modId = "${modId}-test"
     eula = true
     enableClientGameTests = false
     enableGameTests = false
@@ -105,10 +114,20 @@ tasks.processResources {
         expand(
             mapOf(
                 "version" to dynamicVersion,
-                "supported_minecraft_version" to project.property("supported_minecraft_version"),
-                "accessWidener" to awFile
+                "mod_id" to modId,
+                "mod_name" to modName,
+                "mod_description" to modDescription,
+                "mod_author" to modAuthor,
+                "mod_license" to modLicense,
+                "mod_homepage" to modHomepage,
+                "mod_sources" to modSources,
+                "mod_issues" to modIssues,
+                "supported_minecraft_version" to project.property("supported_minecraft_version")
             )
         )
+        filter {
+            it.replace("accesswidener/heos.1.21.2.accesswidener", "accesswidener/$awFile")
+        }
     }
 
     filesMatching("heos.mixins.json") {
@@ -143,7 +162,7 @@ publishMods {
     file = tasks.remapJar.get().archiveFile
     dryRun = true // Disabled by default - set your own project IDs
 
-    displayName = "${property("display_name")} $dynamicVersion"
+    displayName = "${modName} ${property("display_name")} $dynamicVersion"
     version = dynamicVersion
 
     changelog = file("../../RELEASE_NOTE.md").readText()
@@ -180,3 +199,15 @@ fun runGit(vararg args: String): String? = try {
     proc.waitFor(5, TimeUnit.SECONDS)
     if (proc.exitValue() == 0) proc.inputStream.bufferedReader().readText().trim().takeIf { it.isNotBlank() } else null
 } catch (_: Exception) { null }
+
+fun loadHeosmodMetadata(file: File): Map<String, String> {
+    val pattern = Regex("""public\s+static\s+final\s+String\s+(\w+)\s*=\s*\"((?:\\.|[^\"])*)\";""")
+    return pattern.findAll(file.readText()).associate { match ->
+        val key = match.groupValues[1]
+        val value = match.groupValues[2]
+            .replace("\\\"", "\"")
+            .replace("\\n", "\n")
+            .replace("\\\\", "\\")
+        key to value
+    }
+}

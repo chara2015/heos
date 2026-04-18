@@ -1,25 +1,25 @@
 {
   "schemaVersion": 1,
-  "id": "heos",
+  "id": "${mod_id}",
   "version": "${version}",
-  "name": "Heos Mod",
-  "description": "A lightweight Minecraft server authentication mod with hybrid online/offline support",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
   "authors": [
-    "Your Name"
+    "${mod_author}"
   ],
   "contact": {
-    "homepage": "https://github.com/YourUsername/Heos",
-    "sources": "https://github.com/YourUsername/Heos",
-    "issues": "https://github.com/YourUsername/Heos/issues"
+    "homepage": "${mod_homepage}",
+    "sources": "${mod_sources}",
+    "issues": "${mod_issues}"
   },
-  "license": "MIT",
+  "license": "${mod_license}",
   "environment": "server",
   "entrypoints": {
     "main": [
       "heos.HeosFabric"
     ]
   },
-  "accessWidener": "accesswidener/${accessWidener}",
+  "accessWidener": "accesswidener/heos.1.21.2.accesswidener",
   "mixins": [
     "heos.mixins.json"
   ],
