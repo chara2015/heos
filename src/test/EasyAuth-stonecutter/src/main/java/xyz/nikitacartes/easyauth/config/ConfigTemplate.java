@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static xyz.nikitacartes.easyauth.EasyAuth.gameDirectory;
 import static xyz.nikitacartes.easyauth.config.LangConfigV1.TranslatableText;
 import static xyz.nikitacartes.easyauth.utils.EasyLogger.LogError;
@@ -39,7 +40,7 @@ public abstract class ConfigTemplate {
             try {
                 return loader.load().get(configClass);
             } catch (ConfigurateException e) {
-                throw new RuntimeException("[EasyAuth] Failed to load config file", e);
+                throw new RuntimeException("[EasyAuth] Config file " + configPath + " is corrupted. To regenerate it, delete it and the existing main.conf", e);
             }
         } else {
             return null;
@@ -53,7 +54,7 @@ public abstract class ConfigTemplate {
                 if (!Files.exists(backupFolder)) {
                     Files.createDirectories(backupFolder);
                 }
-                Files.move(path, path.resolveSibling("backup/" + configPath + "." + LocalDateTime.now().toString().replace(":", "-")));
+                Files.move(path, path.resolveSibling("backup/" + configPath + "." + LocalDateTime.now().toString().replace(":", "-")), REPLACE_EXISTING);
             }
         } catch (IOException e) {
             LogError("Failed to save config file", e);

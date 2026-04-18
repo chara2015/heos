@@ -2,15 +2,20 @@ package xyz.nikitacartes.easyauth.utils;
 
 import com.mojang.authlib.GameProfile;
 import net.fabricmc.loader.api.FabricLoader;
+//? if >= 1.21.11 {
+import net.minecraft.command.permission.LeveledPermissionPredicate;
+//?}
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.network.packet.s2c.play.PositionFlag;
 import net.minecraft.scoreboard.ScoreboardCriterion;
+import net.minecraft.server.OperatorEntry;
 //? if >= 1.21.9 {
 import net.minecraft.server.PlayerConfigEntry;
 //?}
+import net.minecraft.server.PlayerManager;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 //? if >= 1.21.6 {
@@ -77,10 +82,10 @@ public class StoneCutterUtils {
         //? if >= 1.21.9 {
         return player.getEntityWorld();
         //?} else if >= 1.21.6 {
-        // return player.getWorld();
-        //?} else if >= 1.20 {
-        // return player.getServerWorld();
-        //?} else {
+         /*return player.getWorld();
+        *///?} else if >= 1.20 {
+         /*return player.getServerWorld();
+        *///?} else {
          /*return player.getWorld();
         *///?}
     }
@@ -186,6 +191,59 @@ public class StoneCutterUtils {
 
     public static boolean isModLoaded(String modId) {
         return FabricLoader.getInstance().isModLoaded(modId);
+    }
+
+    public static boolean isAdministrator(PlayerManager playerManager, ServerPlayerEntity player) {
+        return isAdministrator(playerManager, player.getGameProfile());
+    }
+
+    public static boolean isAdministrator(PlayerManager playerManager, GameProfile profile) {
+        //? if >= 1.21.9 {
+        OperatorEntry operatorEntry = playerManager.getOpList().get(new PlayerConfigEntry(profile));
+        //?} else {
+        /*OperatorEntry operatorEntry = playerManager.getOpList().get(profile);
+         *///?}
+        return isAdministrator(operatorEntry);
+    }
+
+    private static boolean isAdministrator(OperatorEntry operatorEntry) {
+        if (operatorEntry == null) {
+            return false;
+        }
+
+        //? if >= 1.21.11 {
+        return operatorEntry.getLevel() == LeveledPermissionPredicate.GAMEMASTERS ||
+                operatorEntry.getLevel() == LeveledPermissionPredicate.ADMINS ||
+                operatorEntry.getLevel() == LeveledPermissionPredicate.OWNERS;
+        //?} else {
+        /*return operatorEntry.getPermissionLevel() >= 2;
+         *///?}
+    }
+
+    public static boolean isOperator(PlayerManager playerManager, ServerPlayerEntity player) {
+        return isOperator(playerManager, player.getGameProfile());
+    }
+
+    public static boolean isOperator(PlayerManager playerManager, GameProfile profile) {
+        //? if >= 1.21.9 {
+        OperatorEntry operatorEntry = playerManager.getOpList().get(new PlayerConfigEntry(profile));
+        //?} else {
+        /*OperatorEntry operatorEntry = playerManager.getOpList().get(profile);
+         *///?}
+        return isOperator(operatorEntry);
+    }
+
+    private static boolean isOperator(OperatorEntry operatorEntry) {
+        if (operatorEntry == null) {
+            return false;
+        }
+
+        //? if >= 1.21.11 {
+        return operatorEntry.getLevel() == LeveledPermissionPredicate.ADMINS ||
+                operatorEntry.getLevel() == LeveledPermissionPredicate.OWNERS;
+        //?} else {
+        /*return operatorEntry.getPermissionLevel() >= 3;
+         *///?}
     }
 
 }

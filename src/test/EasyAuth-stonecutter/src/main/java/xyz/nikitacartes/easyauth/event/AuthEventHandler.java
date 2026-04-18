@@ -29,11 +29,16 @@ import xyz.nikitacartes.easyauth.integrations.VanishIntegration;
 import xyz.nikitacartes.easyauth.storage.PlayerEntryV1;
 import xyz.nikitacartes.easyauth.integrations.FloodgateApiHelper;
 import xyz.nikitacartes.easyauth.interfaces.PlayerAuth;
+import xyz.nikitacartes.easyauth.utils.IpLimitManager;
 import xyz.nikitacartes.easyauth.utils.PlayersCache;
 import xyz.nikitacartes.easyauth.utils.StoneCutterUtils;
 
 import java.net.SocketAddress;
 import java.time.ZonedDateTime;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -46,11 +51,12 @@ import static xyz.nikitacartes.easyauth.utils.EasyLogger.LogDebug;
  */
 public class AuthEventHandler {
 
-    public static long lastAcceptedPacket = 0;
-
     public static Pattern usernamePattern;
 
-    public static boolean isAllowedPacket(Packet<?> packet) {
+    private static final Map<UUID, Long> lastAcceptedPacketByPlayer = new ConcurrentHashMap<>();
+    private static final Map<UUID, Boolean> administratorCache = new ConcurrentHashMap<>();
+
+    public static boolean isAllowedPacket(ServerPlayerEntity player, Packet<?> packet) {
         if (packet instanceof KeepAliveC2SPacket
                 || packet instanceof ResourcePackStatusC2SPacket
                 || packet instanceof TeleportConfirmC2SPacket
@@ -79,15 +85,6 @@ public class AuthEventHandler {
                  /*|| packet instanceof PlayPongC2SPacket
                 *///?}
         ) {
-            return true;
-        }
-
-        if (extendedConfig.allowCustomPackets && (
-                packet instanceof CustomPayloadC2SPacket
-                //? if >= 1.21.6 {
-                || packet instanceof CustomClickActionC2SPacket
-                //?}
-        )) {
             return true;
         }
 
@@ -152,6 +149,61 @@ public class AuthEventHandler {
             return true;
         }
 
+        if (packet instanceof CustomPayloadC2SPacket) {
+            if (extendedConfig.allowCustomPackets) {
+                return true;
+            }
+
+            if (extendedConfig.allowCustomPacketsForNonOp && !isAdministratorCached(player)) {
+                return true;
+            }
+
+            //? if >= 1.20.5 {
+            String customPacketIdentifier = ((CustomPayloadC2SPacket) packet).payload().getId().id().toString();
+            //?} else if >= 1.20.2 {
+            /*String customPacketIdentifier = ((CustomPayloadC2SPacket) packet).payload().id().toString();
+            *///?} else {
+            /*String customPacketIdentifier = ((CustomPayloadC2SPacket) packet).getChannel().toString();
+             *///?}
+
+            if (isAllowedCustomPacket(customPacketIdentifier)) {
+                return true;
+            }
+
+            if (config.debug) {
+                LogDebug("Blocked custom packet " + customPacketIdentifier);
+            }
+        }
+
+        //? if >= 1.21.6 {
+        if (packet instanceof CustomClickActionC2SPacket) {
+            if (extendedConfig.allowCustomPackets) {
+                return true;
+            }
+
+            return extendedConfig.allowCustomPacketsForNonOp && !isAdministratorCached(player);
+        }
+        //?}
+
+        return false;
+    }
+
+    public static boolean isAdministratorCached(ServerPlayerEntity player) {
+        UUID playerUuid = player.getUuid();
+        return administratorCache.computeIfAbsent(playerUuid, ignored -> StoneCutterUtils.isAdministrator(player.server.getPlayerManager(), player));
+    }
+
+    private static boolean isAllowedCustomPacket(String packetIdentifier) {
+        if (packetIdentifier == null || extendedConfig.allowedCustomPackets == null) {
+            return false;
+        }
+
+        for (String allowedPacketIdentifier : extendedConfig.allowedCustomPackets) {
+            if (packetIdentifier.equals(allowedPacketIdentifier)) {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -172,21 +224,21 @@ public class AuthEventHandler {
         String incomingPlayerUsername = StoneCutterUtils.getName(profile);
         PlayerEntity onlinePlayer = manager.getPlayer(incomingPlayerUsername);
 
+        String ip = socketAddress.toString();
+        if (ip.contains("/")) {
+            ip = ip.substring(ip.indexOf(47) + 1);
+        }
+
+        if (ip.contains(":")) {
+            ip = ip.substring(0, ip.indexOf(58));
+        }
+
+        // Player needs to be kicked, since there's already a player with that name
+        // playing on the server
         if ((onlinePlayer != null) && ((PlayerAuth) onlinePlayer).easyAuth$isAuthenticated() && extendedConfig.preventAnotherLocationKick) {
-            // Player needs to be kicked, since there's already a player with that name
-            // playing on the server
 
             // if joining from same IP, allow the player to join
-            String string = socketAddress.toString();
-            if (string.contains("/")) {
-                string = string.substring(string.indexOf(47) + 1);
-            }
-
-            if (string.contains(":")) {
-                string = string.substring(0, string.indexOf(58));
-            }
-
-            if (!((PlayerAuth) onlinePlayer).easyAuth$getIpAddress().equals(string)) {
+            if (!((PlayerAuth) onlinePlayer).easyAuth$getIpAddress().equals(ip)) {
                 return langConfig.playerAlreadyOnline.getNonTranslatable(incomingPlayerUsername);
             }
         }
@@ -209,11 +261,23 @@ public class AuthEventHandler {
             return langConfig.loginTriesExceeded.getNonTranslatable();
         }
 
+        // Check concurrent session limit per IP
+        boolean isOnlinePlayer = config.premiumAutoLogin && (onlinePlayer != null) && ((PlayerAuth) onlinePlayer).easyAuth$isUsingMojangAccount();
+        if (IpLimitManager.isConcurrentSessionLimitExceeded(manager.getServer(), ip, isOnlinePlayer)) {
+            LogDebug("Player " + incomingPlayerUsername + " blocked: concurrent session limit exceeded for IP " + ip);
+            IpLimitManager.notifyAdmins(manager.getServer(), ip, incomingPlayerUsername);
+            return langConfig.sessionLimitExceeded.getNonTranslatable();
+        }
+
         return null;
     }
 
     public static void loadPlayerData(ServerPlayerEntity player, ClientConnection connection) {
         PlayerAuth playerAuth = (PlayerAuth) player;
+
+        UUID playerUuid = player.getUuid();
+        PlayerManager playerManager = player.server.getPlayerManager();
+        administratorCache.put(playerUuid, StoneCutterUtils.isAdministrator(playerManager, player));
 
         // Create in case of Carpet player
         String username = StoneCutterUtils.getUsername(player);
@@ -247,7 +311,7 @@ public class AuthEventHandler {
             cache.update();
         }
 
-        if (extendedConfig.skipAllAuthChecks) {
+        if (isSkipAllAuthChecksApplicable(player)) {
             playerAuth.easyAuth$setAuthenticated(true);
         }
 
@@ -266,7 +330,7 @@ public class AuthEventHandler {
         } else if (playerAuth.easyAuth$isAuthenticated()) {
             langConfig.validSession.send(player);
             return;
-        } else if (extendedConfig.skipAllAuthChecks) {
+        } else if (isSkipAllAuthChecksApplicable(player)) {
             return;
         }
 
@@ -286,6 +350,10 @@ public class AuthEventHandler {
     }
 
     public static void onPlayerLeave(ServerPlayerEntity player) {
+        UUID playerUuid = player.getUuid();
+        administratorCache.remove(playerUuid);
+        lastAcceptedPacketByPlayer.remove(playerUuid);
+
         PlayerAuth playerAuth = (PlayerAuth) player;
         if (playerAuth.easyAuth$canSkipAuth())
             return;
@@ -301,6 +369,23 @@ public class AuthEventHandler {
         }
     }
 
+    public static boolean isSkipAllAuthChecksApplicable(ServerPlayerEntity player) {
+        if (!extendedConfig.skipAllAuthChecks) {
+            return false;
+        }
+
+        PlayerAuth playerAuth = (PlayerAuth) player;
+        if (extendedConfig.skipAllAuthChecksNotForRegisteredPlayers && !playerAuth.easyAuth$getPlayerEntryV1().password.isEmpty()) {
+            return false;
+        }
+
+        if (extendedConfig.skipAllAuthChecksNotForOperators && isAdministratorCached(player)) {
+            return false;
+        }
+
+        return true;
+    }
+
     // Player execute command
     public static ActionResult onPlayerCommand(ServerPlayerEntity player, String command) {
         // Getting the message to then be able to check it
@@ -310,25 +395,47 @@ public class AuthEventHandler {
         if (player == null) {
             return ActionResult.PASS;
         }
+        if (command == null) {
+            return ActionResult.PASS;
+        }
+        if (((PlayerAuth) player).easyAuth$isAuthenticated()) {
+            return ActionResult.PASS;
+        }
+
         if (command.startsWith("login ")
                 || command.startsWith("register ")
                 || (extendedConfig.aliases.login && command.startsWith("l "))
                 || (extendedConfig.aliases.register && command.startsWith("reg "))) {
             return ActionResult.PASS;
         }
-        if (!((PlayerAuth) player).easyAuth$isAuthenticated()) {
-            String username = StoneCutterUtils.getUsername(player);
-            for (String allowedCommand : extendedConfig.allowedCommands) {
-                if (command.startsWith(allowedCommand)) {
-                    LogDebug("Player " + username + " executed command " + command + " without being authenticated.");
-                    return ActionResult.PASS;
-                }
-            }
-            LogDebug("Player " + username + " tried to execute command " + command + " without being authenticated.");
-            ((PlayerAuth) player).easyAuth$sendAuthMessage();
-            return ActionResult.FAIL;
+
+        String normalizedCommand = command.trim();
+        if (normalizedCommand.startsWith("/")) {
+            normalizedCommand = normalizedCommand.substring(1);
         }
-        return ActionResult.PASS;
+
+        String lowercaseCommand = normalizedCommand.toLowerCase(Locale.ENGLISH);
+        if (lowercaseCommand.equals("op")
+                || lowercaseCommand.startsWith("op ")
+                || lowercaseCommand.equals("minecraft:op")
+                || lowercaseCommand.startsWith("minecraft:op ")
+                || lowercaseCommand.equals("deop")
+                || lowercaseCommand.startsWith("deop ")
+                || lowercaseCommand.equals("minecraft:deop")
+                || lowercaseCommand.startsWith("minecraft:deop ")) {
+            administratorCache.clear();
+        }
+
+        String username = StoneCutterUtils.getUsername(player);
+        for (String allowedCommand : extendedConfig.allowedCommands) {
+            if (command.startsWith(allowedCommand)) {
+                LogDebug("Player " + username + " executed command " + command + " without being authenticated.");
+                return ActionResult.PASS;
+            }
+        }
+        LogDebug("Player " + username + " tried to execute command " + command + " without being authenticated.");
+        ((PlayerAuth) player).easyAuth$sendAuthMessage();
+        return ActionResult.FAIL;
     }
 
     // Player chatting
@@ -345,9 +452,12 @@ public class AuthEventHandler {
         // Player will fall if enabled (prevent fly kick)
         // Otherwise, movement should be disabled
         if (!((PlayerAuth) player).easyAuth$isAuthenticated() && !extendedConfig.allowMovement) {
-            if (System.nanoTime() >= lastAcceptedPacket + extendedConfig.teleportationTimeoutMs * 1000000) {
+            UUID playerUuid = player.getUuid();
+            long now = System.nanoTime();
+            long lastAcceptedPacket = lastAcceptedPacketByPlayer.getOrDefault(playerUuid, 0L);
+            if (now >= lastAcceptedPacket + extendedConfig.teleportationTimeoutMs * 1_000_000L) {
                 player.networkHandler.requestTeleport(player.getX(), player.getY(), player.getZ(), player.getYaw(), player.getPitch());
-                lastAcceptedPacket = System.nanoTime();
+                lastAcceptedPacketByPlayer.put(playerUuid, now);
             }
             return ActionResult.FAIL;
         }
@@ -437,8 +547,8 @@ public class AuthEventHandler {
             //? if >= 1.21.9 {
             netHandler.profile = Uuids.getOfflinePlayerProfile(netHandler.profile.name());
             //?} else if >= 1.20.3 {
-            //netHandler.profile = Uuids.getOfflinePlayerProfile(netHandler.profile.getName());
-            //?} else if >= 1.20.2 {
+            /*netHandler.profile = Uuids.getOfflinePlayerProfile(netHandler.profile.getName());
+            *///?} else if >= 1.20.2 {
             /*netHandler.profile = ServerLoginNetworkHandler.createOfflineProfile(netHandler.profile.getName());
             *///?} else {
             /*netHandler.profile = netHandler.toOfflineProfile(netHandler.profile);

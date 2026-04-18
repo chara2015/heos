@@ -3,8 +3,8 @@ package heos.event;
 import heos.interfaces.PlayerAuth;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.c2s.play.*;
 import net.minecraft.network.packet.c2s.common.*;
+import net.minecraft.network.packet.c2s.play.*;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.ActionResult;
 
@@ -12,12 +12,8 @@ import net.minecraft.util.ActionResult;
  * Handles authentication events and restricts unauthenticated players
  */
 public class AuthEventHandler {
-    
-    /**
-     * Checks if packet is allowed for unauthenticated players
-     */
+
     public static boolean isAllowedPacket(Packet<?> packet) {
-        // Always allow these packets
         if (packet instanceof KeepAliveC2SPacket
                 || packet instanceof ResourcePackStatusC2SPacket
                 || packet instanceof TeleportConfirmC2SPacket
@@ -27,6 +23,8 @@ public class AuthEventHandler {
                 || packet instanceof ClientOptionsC2SPacket
                 || packet instanceof AcknowledgeChunksC2SPacket
                 || packet instanceof AcknowledgeReconfigurationC2SPacket
+                || packet instanceof RequestCommandCompletionsC2SPacket
+                || packet instanceof CommandExecutionC2SPacket
                 //? if >= 1.21.2 {
                 || packet instanceof ClientTickEndC2SPacket
                 //?}
@@ -36,122 +34,167 @@ public class AuthEventHandler {
         ) {
             return true;
         }
-        
-        // Allow movement packets (but position will be reset)
+
         if (packet instanceof PlayerMoveC2SPacket
                 || packet instanceof VehicleMoveC2SPacket
                 || packet instanceof PlayerInputC2SPacket) {
             return true;
         }
-        
-        // Allow command execution (for /login and /register)
-        if (packet instanceof CommandExecutionC2SPacket
-                || packet instanceof RequestCommandCompletionsC2SPacket) {
-            return true;
-        }
-        
-        // Block everything else
+
         return false;
     }
-    
-    /**
-     * Handles player movement - prevents unauthenticated players from moving
-     */
-    public static ActionResult onPlayerMove(ServerPlayerEntity player) {
+
+    public static ActionResult onPlayerMove(ServerPlayerEntity player, PlayerMoveC2SPacket packet) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return ActionResult.PASS;
+        }
         if (!((PlayerAuth) player).heos$isAuthenticated()) {
-            // Teleport player back to prevent movement
+            double nextX = packet.getX(player.getX());
+            double nextY = packet.getY(player.getY());
+            double nextZ = packet.getZ(player.getZ());
+
+            boolean moved = Double.compare(nextX, player.getX()) != 0
+                    || Double.compare(nextY, player.getY()) != 0
+                    || Double.compare(nextZ, player.getZ()) != 0;
+
+            if (!moved) {
+                return ActionResult.PASS;
+            }
             player.networkHandler.requestTeleport(
-                player.getX(), 
-                player.getY(), 
-                player.getZ(), 
-                player.getYaw(), 
-                player.getPitch()
+                    player.getX(),
+                    player.getY(),
+                    player.getZ(),
+                    player.getYaw(),
+                    player.getPitch()
             );
             return ActionResult.FAIL;
         }
         return ActionResult.PASS;
     }
-    
-    /**
-     * Handles player chat
-     */
+
     public static ActionResult onPlayerChat(ServerPlayerEntity player) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return ActionResult.PASS;
+        }
         if (!((PlayerAuth) player).heos$isAuthenticated()) {
             ((PlayerAuth) player).heos$sendAuthMessage();
             return ActionResult.FAIL;
         }
         return ActionResult.PASS;
     }
-    
-    /**
-     * Handles block breaking
-     */
+
     public static boolean onBreakBlock(PlayerEntity player) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return true;
+        }
         if (!((PlayerAuth) player).heos$isAuthenticated()) {
             ((PlayerAuth) player).heos$sendAuthMessage();
             return false;
         }
         return true;
     }
-    
-    /**
-     * Handles block interaction
-     */
+
     public static ActionResult onUseBlock(PlayerEntity player) {
-        if (!((PlayerAuth) player).heos$isAuthenticated()) {
-            ((PlayerAuth) player).heos$sendAuthMessage();
-            return ActionResult.FAIL;
-        }
-        return ActionResult.PASS;
-    }
-    
-    /**
-     * Handles item usage
-     */
-    public static ActionResult onUseItem(PlayerEntity player) {
-        if (!((PlayerAuth) player).heos$isAuthenticated()) {
-            ((PlayerAuth) player).heos$sendAuthMessage();
-            return ActionResult.FAIL;
-        }
-        return ActionResult.PASS;
-    }
-    
-    /**
-     * Handles entity attack
-     */
-    public static ActionResult onAttackEntity(PlayerEntity player) {
-        if (!((PlayerAuth) player).heos$isAuthenticated()) {
-            ((PlayerAuth) player).heos$sendAuthMessage();
-            return ActionResult.FAIL;
-        }
-        return ActionResult.PASS;
-    }
-    
-    /**
-     * Handles entity interaction
-     */
-    public static ActionResult onUseEntity(PlayerEntity player) {
-        if (!((PlayerAuth) player).heos$isAuthenticated()) {
-            ((PlayerAuth) player).heos$sendAuthMessage();
-            return ActionResult.FAIL;
-        }
-        return ActionResult.PASS;
-    }
-    
-    /**
-     * Handles command execution
-     */
-    public static ActionResult onPlayerCommand(ServerPlayerEntity player, String command) {
-        // Allow login and register commands
-        if (command.startsWith("login ") || command.startsWith("register ")) {
+        if (player.getClass() != ServerPlayerEntity.class) {
             return ActionResult.PASS;
         }
-        
         if (!((PlayerAuth) player).heos$isAuthenticated()) {
             ((PlayerAuth) player).heos$sendAuthMessage();
             return ActionResult.FAIL;
         }
-        
+        return ActionResult.PASS;
+    }
+
+    public static ActionResult onUseItem(PlayerEntity player) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return ActionResult.PASS;
+        }
+        if (!((PlayerAuth) player).heos$isAuthenticated()) {
+            ((PlayerAuth) player).heos$sendAuthMessage();
+            return ActionResult.FAIL;
+        }
+        return ActionResult.PASS;
+    }
+
+    public static ActionResult onTakeItem(ServerPlayerEntity player) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return ActionResult.PASS;
+        }
+        if (!((PlayerAuth) player).heos$isAuthenticated()) {
+            ((PlayerAuth) player).heos$sendAuthMessage();
+            return ActionResult.FAIL;
+        }
+        return ActionResult.PASS;
+    }
+
+    public static ActionResult onInventoryAction(ServerPlayerEntity player) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return ActionResult.PASS;
+        }
+        if (!((PlayerAuth) player).heos$isAuthenticated()) {
+            ((PlayerAuth) player).heos$sendAuthMessage();
+            return ActionResult.FAIL;
+        }
+        return ActionResult.PASS;
+    }
+
+    public static ActionResult onHotbarChange(ServerPlayerEntity player) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return ActionResult.PASS;
+        }
+        if (!((PlayerAuth) player).heos$isAuthenticated()) {
+            ((PlayerAuth) player).heos$sendAuthMessage();
+            return ActionResult.FAIL;
+        }
+        return ActionResult.PASS;
+    }
+
+    public static ActionResult onDropItem(ServerPlayerEntity player) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return ActionResult.PASS;
+        }
+        if (!((PlayerAuth) player).heos$isAuthenticated()) {
+            ((PlayerAuth) player).heos$sendAuthMessage();
+            return ActionResult.FAIL;
+        }
+        return ActionResult.PASS;
+    }
+
+    public static ActionResult onAttackEntity(PlayerEntity player) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return ActionResult.PASS;
+        }
+        if (!((PlayerAuth) player).heos$isAuthenticated()) {
+            ((PlayerAuth) player).heos$sendAuthMessage();
+            return ActionResult.FAIL;
+        }
+        return ActionResult.PASS;
+    }
+
+    public static ActionResult onUseEntity(PlayerEntity player) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return ActionResult.PASS;
+        }
+        if (!((PlayerAuth) player).heos$isAuthenticated()) {
+            ((PlayerAuth) player).heos$sendAuthMessage();
+            return ActionResult.FAIL;
+        }
+        return ActionResult.PASS;
+    }
+
+    public static ActionResult onPlayerCommand(ServerPlayerEntity player, String command) {
+        if (player.getClass() != ServerPlayerEntity.class) {
+            return ActionResult.PASS;
+        }
+        if (command.startsWith("login ") || command.startsWith("register ") || command.startsWith("l ") || command.startsWith("reg ")) {
+            return ActionResult.PASS;
+        }
+
+        if (!((PlayerAuth) player).heos$isAuthenticated()) {
+            ((PlayerAuth) player).heos$sendAuthMessage();
+            return ActionResult.FAIL;
+        }
+
         return ActionResult.PASS;
     }
 }

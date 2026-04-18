@@ -2,10 +2,41 @@
 #### Add
 - Add support for a changing "invalid session" message when offline player connects with online nickname
 - Gamemode switching on login
+- Op status switching on login
 - Optional session by player
 
 #### Fix
 - Check how offline players work if they try to connect with a taken online account
+
+---
+### 3.4.3
+##### Minecraft 1.19.4, 1.20[.X], 1.21[.X]
+#### Add
+- IP limit controls [#200](https://github.com/NikitaCartes/EasyAuth/issues/200), thanks to @virgil698 [#252](https://github.com/NikitaCartes/EasyAuth/pull/252)
+- New config options for IP limit in `extended.conf`:
+  - `ipLimit.enabled`
+  - `ipLimit.maxAccountsPerIp`
+  - `ipLimit.blockExcessRegistration`
+  - `ipLimit.notifyAdmins`
+  - `ipLimit.exemptIps`
+  - `ipLimit.cacheExpirySeconds`
+  - `ipLimit.maxConcurrentSessionsPerIp`
+  - `ipLimit.exemptOnlinePlayers`
+- UUID management commands, thanks to @virgil698 [#249](https://github.com/NikitaCartes/EasyAuth/issues/249)
+  - `/auth setUuid`
+  - `/auth clearUuid`
+  - `/auth getUuid`
+- PostgreSQL support, thanks to @DanielTrejoBorjas [#226](https://github.com/NikitaCartes/EasyAuth/pull/226), [#258](https://github.com/NikitaCartes/EasyAuth/pull/258)
+- New options in `extended.conf` for preventing OPs and registered players from joining without logging with `skipAllAuthChecks` enabled, thanks to @Fenix5fire [#184](https://github.com/NikitaCartes/EasyAuth/pull/184)
+  - `skipAllAuthChecksNotForOperators`
+  - `skipAllAuthChecksNotForRegisteredPlayers`
+- Option `allowCustomPacketsForNonOp` to allow handling custom packets for non-OP players
+- Option `allowedCustomPackets` to specify list of custom packets that always allowed
+
+#### Fix
+- `/auth update` to also refresh cached online player data [#244](https://github.com/NikitaCartes/EasyAuth/issues/244)
+- Problem with loading configurations files [#225](https://github.com/NikitaCartes/EasyAuth/issues/225)
+- Fail to freeze player before login [#261](https://github.com/NikitaCartes/EasyAuth/issues/261)
 
 ---
 ### 3.4.2
@@ -13,7 +44,11 @@
 #### Fix
 - It wasn't possible to join the server using an online account if `forced-offline-uuid` was enabled
 - `hide-player-coords` not working for players with `ONLINE` status on `online-mode` servers [#251](https://github.com/NikitaCartes/EasyAuth/issues/251)
-- Packets are being handled for not authenticated players (#230)(https://github.com/NikitaCartes/EasyAuth/issues/230)
+- Packets are being handled for not authenticated players [#230](https://github.com/NikitaCartes/EasyAuth/issues/230)
+
+#### Add
+- Option `allowCustomPackets` to allow handling custom packets (used by other mods) for not authenticated players
+- Option `allowAllPackets` to allow handling all packets for not authenticated players (including vanilla packets)
 
 ---
 ### 3.4.1

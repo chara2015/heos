@@ -24,6 +24,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static xyz.nikitacartes.easyauth.config.ConfigMigration.*;
+import static xyz.nikitacartes.easyauth.config.MainConfigV1.CURRENT_CONFIG_VERSION;
+import static xyz.nikitacartes.easyauth.config.StorageConfigV1.getDbApi;
 import static xyz.nikitacartes.easyauth.utils.EasyLogger.*;
 
 public class EasyAuth {
@@ -45,13 +47,7 @@ public class EasyAuth {
 
 
     public static void loadDatabase() {
-        if (storageConfig.databaseType.equalsIgnoreCase("mysql")) {
-            DB = new MySQL(storageConfig);
-        } else if (storageConfig.databaseType.equalsIgnoreCase("mongodb")) {
-            DB = new MongoDB(storageConfig);
-        } else {
-            DB = new SQLite(storageConfig);
-        }
+        DB = getDbApi();
         try {
             DB.connect();
         } catch (DBApiException e) {
@@ -107,8 +103,6 @@ public class EasyAuth {
         // Closing DbApi connection
         DB.close();
     }
-
-    private static final int CURRENT_CONFIG_VERSION = 4;
 
     public static void loadConfigs() {
         int configVersion = VersionConfig.load().configVersion;

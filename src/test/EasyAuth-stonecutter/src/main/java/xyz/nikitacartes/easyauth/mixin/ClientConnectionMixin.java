@@ -18,13 +18,14 @@ import static xyz.nikitacartes.easyauth.EasyAuth.extendedConfig;
 public abstract class ClientConnectionMixin {
     @Inject(method = "handlePacket", at = @At("HEAD"), cancellable = true)
     private static void easyAuth$onHandlePacket(Packet<?> packet, PacketListener listener, CallbackInfo ci) {
-        if (extendedConfig.allowAllPackets || extendedConfig.skipAllAuthChecks) {
+        boolean isServerPlayNetworkHandler = listener instanceof ServerPlayNetworkHandler;
+        if (extendedConfig.allowAllPackets || (isServerPlayNetworkHandler && AuthEventHandler.isSkipAllAuthChecksApplicable(((ServerPlayNetworkHandler) listener).player))) {
             return;
         }
-        if (listener instanceof ServerPlayNetworkHandler handler) {
-            ServerPlayerEntity player = handler.player;
+        if (isServerPlayNetworkHandler) {
+            ServerPlayerEntity player = ((ServerPlayNetworkHandler) listener).player;
             if (!((PlayerAuth) player).easyAuth$isAuthenticated()) {
-                if (!AuthEventHandler.isAllowedPacket(packet)) {
+                if (!AuthEventHandler.isAllowedPacket(player, packet)) {
                     ci.cancel();
                 }
             }

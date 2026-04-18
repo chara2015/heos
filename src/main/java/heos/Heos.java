@@ -3,6 +3,7 @@ package heos;
 import heos.config.HeosConfig;
 import heos.storage.BanData;
 import heos.storage.PlayerData;
+import heos.storage.WhitelistData;
 import heos.utils.HeosLogger;
 import net.minecraft.server.MinecraftServer;
 
@@ -15,46 +16,37 @@ import java.util.Map;
  */
 public class Heos {
     public static Path gameDirectory;
-    
-    // Configuration
+
     private static HeosConfig config;
-    
-    // Ban data
     private static BanData banData;
-    
-    // Player data cache
+    private static WhitelistData whitelistData;
     private static final Map<String, PlayerData> playerDataCache = new HashMap<>();
-    
-    /**
-     * Gets configuration
-     */
+
     public static HeosConfig getConfig() {
         if (config == null) {
             config = HeosConfig.load();
         }
         return config;
     }
-    
-    /**
-     * Gets ban data
-     */
+
     public static BanData getBanData() {
         if (banData == null) {
             banData = BanData.load();
         }
         return banData;
     }
-    
-    /**
-     * Gets or creates player data
-     */
+
+    public static WhitelistData getWhitelistData() {
+        if (whitelistData == null) {
+            whitelistData = WhitelistData.load();
+        }
+        return whitelistData;
+    }
+
     public static PlayerData getPlayerData(String username) {
         return playerDataCache.computeIfAbsent(username.toLowerCase(), k -> PlayerData.load(username));
     }
-    
-    /**
-     * Removes player data from cache
-     */
+
     public static void removePlayerData(String username) {
         playerDataCache.remove(username.toLowerCase());
     }
@@ -67,15 +59,19 @@ public class Heos {
         HeosLogger.info(" |  _  | |___  | |_| |___) |");
         HeosLogger.info(" |_| |_|_____|  \\___/|____/ ");
         HeosLogger.info("=================================");
-        HeosLogger.info("Heos authentication system started!");
+        HeosLogger.info(Heosmod.MOD_NAME + " authentication system started!");
+        HeosLogger.info("Mod id: " + Heosmod.MOD_ID);
+        HeosLogger.info("Mod version: " + Heosmod.MOD_VERSION);
+        HeosLogger.info("Mod author: " + Heosmod.MOD_AUTHOR);
+        HeosLogger.info("License: " + Heosmod.MOD_LICENSE);
         HeosLogger.info("Minecraft version: " + server.getVersion());
         HeosLogger.info("Game directory: " + gameDirectory);
         HeosLogger.info("Online mode: " + server.isOnlineMode());
-        
-        // Load config and ban data
+
         config = HeosConfig.load();
         banData = BanData.load();
-        
+        whitelistData = WhitelistData.load();
+
         HeosLogger.info("Authentication: " + (config.enableAuthentication ? "Enabled" : "Disabled"));
         HeosLogger.info("Whitelist: " + (config.enableWhitelist ? "Enabled" : "Disabled"));
         HeosLogger.info("Custom Ban: " + (config.enableCustomBan ? "Enabled" : "Disabled"));
