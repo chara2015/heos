@@ -8,6 +8,7 @@ import net.minecraft.block.Blocks;
 import net.minecraft.network.ClientConnection;
 import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import org.spongepowered.asm.mixin.Mixin;
@@ -41,7 +42,7 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
     private long heos$kickTimer = 60 * 20;
 
     @Unique
-    private long heos$lastAuthPromptTick = Long.MIN_VALUE;
+    private long heos$lastAuthPromptTick = -40;
 
     @Override
     public void heos$setAuthenticated(boolean authenticated) {
@@ -49,13 +50,14 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
         ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
 
         if (authenticated) {
-            heos$lastAuthPromptTick = Long.MIN_VALUE;
+            heos$lastAuthPromptTick = -40;
             HeosLogger.debug("Player authenticated: " + player.getName().getString());
             heos$kickTimer = 60 * 20;
 
+            ServerWorld world = heos$getServerWorld(player);
             BlockPos pos = player.getBlockPos();
-            player.getServerWorld().updateListeners(pos, player.getServerWorld().getBlockState(pos), player.getServerWorld().getBlockState(pos), 3);
-            player.getServerWorld().updateListeners(pos.up(), player.getServerWorld().getBlockState(pos.up()), player.getServerWorld().getBlockState(pos.up()), 3);
+            world.updateListeners(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
+            world.updateListeners(pos.up(), world.getBlockState(pos.up()), world.getBlockState(pos.up()), 3);
         }
     }
 
@@ -123,8 +125,8 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
             return;
         }
 
-        long currentTick = player.getServerWorld().getTime();
-        if (currentTick - heos$lastAuthPromptTick < 40) {
+        long currentTick = heos$getServerWorld(player).getTime();
+        if (heos$lastAuthPromptTick >= 0 && currentTick - heos$lastAuthPromptTick < 40) {
             return;
         }
         heos$lastAuthPromptTick = currentTick;
@@ -146,6 +148,15 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
         return original || !heos$authenticated;
     }
 
+    @Unique
+    private ServerWorld heos$getServerWorld(ServerPlayerEntity player) {
+        //? if >= 1.21.11 {
+        return (ServerWorld) player.getEntityWorld();
+        //?} else {
+        /*return player.getServerWorld();
+        *///?}
+    }
+
     @Inject(method = "playerTick()V", at = @At("HEAD"), cancellable = true)
     private void onPlayerTick(CallbackInfo ci) {
         if (!heos$authenticated) {
@@ -157,15 +168,16 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
             if (heos$kickTimer <= 0 && player.networkHandler.isConnectionOpen()) {
                 player.networkHandler.disconnect(Text.literal(Messages.loginTimeout()));
             } else {
-                if (heos$kickTimer < 56 * 20 && heos$kickTimer % 200 == 0) {
+                if (heos$kickTimer % 200 == 0) {
                     heos$sendAuthMessage();
                 }
                 --heos$kickTimer;
             }
 
+            ServerWorld world = heos$getServerWorld(player);
             BlockPos pos = player.getBlockPos();
-            if (player.getServerWorld().getBlockState(pos).getBlock().equals(Blocks.NETHER_PORTAL)
-                    || player.getServerWorld().getBlockState(pos.up()).getBlock().equals(Blocks.NETHER_PORTAL)) {
+            if (world.getBlockState(pos).getBlock().equals(Blocks.NETHER_PORTAL)
+                    || world.getBlockState(pos.up()).getBlock().equals(Blocks.NETHER_PORTAL)) {
                 player.teleport(pos.getX() + 0.5, player.getY(), pos.getZ() + 0.5, false);
 
                 BlockUpdateS2CPacket feetPacket = new BlockUpdateS2CPacket(pos, Blocks.AIR.getDefaultState());

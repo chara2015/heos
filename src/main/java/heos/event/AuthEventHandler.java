@@ -3,7 +3,9 @@ package heos.event;
 import heos.interfaces.PlayerAuth;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.Packet;
+//? if >= 1.20.2 {
 import net.minecraft.network.packet.c2s.common.*;
+//?}
 import net.minecraft.network.packet.c2s.play.*;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.ActionResult;
@@ -19,10 +21,12 @@ public class AuthEventHandler {
                 || packet instanceof TeleportConfirmC2SPacket
                 || packet instanceof PlayerSessionC2SPacket
                 || packet instanceof ClientStatusC2SPacket
+                //? if >= 1.20.2 {
                 || packet instanceof CommonPongC2SPacket
                 || packet instanceof ClientOptionsC2SPacket
                 || packet instanceof AcknowledgeChunksC2SPacket
                 || packet instanceof AcknowledgeReconfigurationC2SPacket
+                //?}
                 || packet instanceof RequestCommandCompletionsC2SPacket
                 || packet instanceof CommandExecutionC2SPacket
                 //? if >= 1.21.2 {
@@ -57,6 +61,12 @@ public class AuthEventHandler {
                     || Double.compare(nextY, player.getY()) != 0
                     || Double.compare(nextZ, player.getZ()) != 0;
 
+            float yaw = packet.getYaw(player.getYaw());
+            float pitch = packet.getPitch(player.getPitch());
+            player.setYaw(yaw);
+            player.setPitch(pitch);
+            player.setHeadYaw(yaw);
+
             if (!moved) {
                 return ActionResult.PASS;
             }
@@ -64,8 +74,8 @@ public class AuthEventHandler {
                     player.getX(),
                     player.getY(),
                     player.getZ(),
-                    player.getYaw(),
-                    player.getPitch()
+                    yaw,
+                    pitch
             );
             return ActionResult.FAIL;
         }

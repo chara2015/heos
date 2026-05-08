@@ -10,4 +10,13 @@ public class Permissions {
     public static @NotNull Predicate<ServerCommandSource> require(@NotNull String permission, boolean defaultValue) {
         return source -> defaultValue;
     }
+
+    public static @NotNull Predicate<ServerCommandSource> requireLevel(int level) {
+        return source -> {
+            if (!source.isExecutedByPlayer()) {
+                return true;
+            }
+            return source.getServer().getPlayerManager().isOperator(source.getPlayer().getGameProfile());
+        };
+    }
 }

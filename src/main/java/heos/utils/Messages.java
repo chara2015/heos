@@ -112,4 +112,24 @@ public final class Messages {
     public static String keepPasswordSafe() {
         return isEnglish() ? "§ePlease keep your password safe" : "§e请妥善保管你的密码";
     }
+
+    public static boolean isMigrationReason(String reason) {
+        if (reason == null) {
+            return false;
+        }
+        String normalized = reason.toLowerCase();
+        return normalized.contains("数据正在进行迁移")
+                || normalized.contains("data migration in progress")
+                || normalized.contains("migration in progress");
+    }
+
+    public static String migrationBanLogOnly() {
+        return "HEOS_MIGRATION_BAN";
+    }
+
+    public static String migrationBanAttemptLog(String username) {
+        return isEnglish()
+                ? "The migrated player is trying to connect: " + username
+                : "被迁移数据的玩家正在尝试连接: " + username;
+    }
 }

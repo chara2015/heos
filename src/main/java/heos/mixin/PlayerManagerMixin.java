@@ -7,7 +7,9 @@ import heos.utils.HeosLogger;
 import heos.utils.Messages;
 import net.minecraft.network.ClientConnection;
 import net.minecraft.server.PlayerManager;
+//? if >= 1.20.2 {
 import net.minecraft.server.network.ConnectedClientData;
+//?}
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.Uuids;
@@ -22,8 +24,19 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(PlayerManager.class)
 public abstract class PlayerManagerMixin {
 
+    //? if >= 1.20.2 {
     @Inject(method = "onPlayerConnect", at = @At("TAIL"))
     private void onPlayerJoin(ClientConnection connection, ServerPlayerEntity player, ConnectedClientData clientData, CallbackInfo ci) {
+        heos$handlePlayerJoin(connection, player);
+    }
+    //?} else {
+    /*@Inject(method = "onPlayerConnect", at = @At("TAIL"))
+    private void onPlayerJoin(ClientConnection connection, ServerPlayerEntity player, CallbackInfo ci) {
+        heos$handlePlayerJoin(connection, player);
+    }
+    *///?}
+
+    private void heos$handlePlayerJoin(ClientConnection connection, ServerPlayerEntity player) {
         PlayerAuth playerAuth = (PlayerAuth) player;
         String username = player.getName().getString();
 
@@ -39,7 +52,7 @@ public abstract class PlayerManagerMixin {
             return;
         }
 
-        if (data.isOnlineAccount || (player.getServer().isOnlineMode() && !player.getUuid().equals(Uuids.getOfflinePlayerUuid(username)))) {
+        if (data.isOnlineAccount || (player.server.isOnlineMode() && !player.getUuid().equals(Uuids.getOfflinePlayerUuid(username)))) {
             data.isOnlineAccount = true;
             data.uuid = player.getUuid();
             data.save();
@@ -54,7 +67,7 @@ public abstract class PlayerManagerMixin {
             playerAuth.heos$setUsingMojangAccount(false);
             playerAuth.heos$setAuthenticated(false);
             HeosLogger.info("Offline player " + username + " joined, authentication required");
-            playerAuth.heos$sendAuthMessage();
+            player.server.execute(playerAuth::heos$sendAuthMessage);
         }
     }
 

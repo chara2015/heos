@@ -16,6 +16,11 @@ import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.loader.api.FabricLoader;
+//? if < 1.21 {
+/*import net.minecraft.item.ItemStack;
+import net.minecraft.util.ActionResult;
+import net.minecraft.util.TypedActionResult;
+*///?}
 
 /**
  * Fabric mod initializer for Heos
@@ -58,9 +63,22 @@ public class HeosFabric implements ModInitializer {
             AuthEventHandler.onUseBlock(player)
         );
 
+        //? if >= 1.21 {
         UseItemCallback.EVENT.register((player, world, hand) ->
             AuthEventHandler.onUseItem(player)
         );
+        //?} else {
+        /*UseItemCallback.EVENT.register((player, world, hand) -> {
+            ActionResult result = AuthEventHandler.onUseItem(player);
+            if (result == ActionResult.FAIL) {
+                return TypedActionResult.fail(ItemStack.EMPTY);
+            }
+            if (result == ActionResult.SUCCESS) {
+                return TypedActionResult.success(ItemStack.EMPTY);
+            }
+            return TypedActionResult.pass(ItemStack.EMPTY);
+        });
+        *///?}
 
         AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) ->
             AuthEventHandler.onAttackEntity(player)

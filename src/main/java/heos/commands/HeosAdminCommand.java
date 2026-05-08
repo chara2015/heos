@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import heos.Heos;
+import heos.integrations.Permissions;
 import heos.storage.PlayerData;
 import heos.storage.WhitelistData;
 import heos.utils.HeosLogger;
@@ -21,7 +22,7 @@ public class HeosAdminCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
         dispatcher.register(
             CommandManager.literal("heosadmin")
-                .requires(source -> source.hasPermissionLevel(3))
+                .requires(Permissions.requireLevel(3))
                 .then(CommandManager.literal("resetpassword")
                     .then(CommandManager.argument("player", StringArgumentType.string())
                         .then(CommandManager.argument("newPassword", StringArgumentType.string())
@@ -37,6 +38,13 @@ public class HeosAdminCommand {
                 .then(CommandManager.literal("info")
                     .then(CommandManager.argument("player", StringArgumentType.string())
                         .executes(HeosAdminCommand::info)
+                    )
+                )
+                .then(CommandManager.literal("migrate")
+                    .then(CommandManager.argument("sourcePlayer", StringArgumentType.string())
+                        .then(CommandManager.argument("targetPlayer", StringArgumentType.string())
+                            .executes(MigrateCommand::executeMigrate)
+                        )
                     )
                 )
                 .then(CommandManager.literal("whitelist")

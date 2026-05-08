@@ -21,6 +21,7 @@ public class HeosConfig {
     public boolean enableAuthentication = true;
     public String language = "zh_cn";
     public int loginTimeout = 60; // seconds
+    public int migrationBanSeconds = 60; // seconds
     public int minPasswordLength = 4;
     public int maxPasswordLength = 32;
 
