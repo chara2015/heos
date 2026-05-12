@@ -139,6 +139,11 @@ dependencies {
 
 tasks.jar {
     from("LICENSE")
+    outputs.upToDateWhen { false }
+}
+
+tasks.findByName("remapJar")?.let { remapJarTask ->
+    remapJarTask.outputs.upToDateWhen { false }
 }
 
 tasks.withType<ProcessResources>().configureEach {

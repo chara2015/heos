@@ -12,21 +12,40 @@ val collectReleaseJars by tasks.registering(Sync::class) {
     group = "build"
     description = "Collects all built release jars into build/release-jars."
     into(layout.buildDirectory.dir("release-jars"))
-
-    subprojects.forEach { versionProject ->
-        from(versionProject.layout.buildDirectory.dir("libs")) {
-            include("*.jar")
-            exclude("*-sources.jar", "*-dev.jar", "*-all.jar")
-        }
-    }
 }
 
 gradle.projectsEvaluated {
+    val versionBuilds = subprojects.map { it.tasks.named("build") }
+
     collectReleaseJars.configure {
-        mustRunAfter(subprojects.map { it.tasks.named("build") })
+        dependsOn(versionBuilds)
+
+        subprojects.forEach { versionProject ->
+            val releaseJar = if (versionProject.findProperty("minecraft_version")
+                    ?.toString()
+                    ?.substringBefore('.')
+                    ?.toIntOrNull()
+                    ?.let { it >= 26 } == true
+            ) {
+                versionProject.tasks.named("jar")
+            } else {
+                versionProject.tasks.named("remapJar")
+            }
+
+            from(releaseJar.map { it.outputs.files }) {
+                include("*.jar")
+                exclude("*-sources.jar", "*-dev.jar", "*-all.jar")
+            }
+        }
     }
 
     tasks.matching { it.name == "build" }.configureEach {
         finalizedBy(collectReleaseJars)
+    }
+
+    subprojects.forEach { versionProject ->
+        versionProject.tasks.matching { it.name == "build" }.configureEach {
+            finalizedBy(collectReleaseJars)
+        }
     }
 }
