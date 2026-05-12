@@ -1,30 +1,59 @@
 package heos.utils;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import heos.Heos;
+
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Localized auth-related messages based on config language.
  */
 public final class Messages {
+    private static final Gson GSON = new Gson();
+    private static final Map<String, String> FALLBACK = loadLanguage("en_us");
+
     private Messages() {
     }
 
-    public static boolean isEnglish() {
-        return Heos.getConfig() != null && "en_us".equalsIgnoreCase(Heos.getConfig().language);
+    private static Map<String, String> loadLanguage(String language) {
+        try {
+            var stream = Messages.class.getResourceAsStream("/data/heos/lang/" + language.toLowerCase(Locale.ENGLISH) + ".json");
+            if (stream == null) {
+                return Collections.emptyMap();
+            }
+            try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+                Map<String, String> map = GSON.fromJson(reader, new TypeToken<Map<String, String>>() {}.getType());
+                return map == null ? Collections.emptyMap() : map;
+            }
+        } catch (Exception e) {
+            return Collections.emptyMap();
+        }
+    }
+
+    private static String translate(String key) {
+        String language = Heos.getConfig() == null ? "en_us" : Heos.getConfig().language;
+        Map<String, String> current = loadLanguage(language);
+        if (current.containsKey(key)) {
+            return current.get(key);
+        }
+        return FALLBACK.getOrDefault(key, key);
     }
 
     public static String authPromptLogin() {
-        return isEnglish() ? "§ePlease use /login <password> to log in" : "§e请使用 /login <密码> 登录";
+        return translate("text.heos.loginInputHint");
     }
 
     public static String authPromptRegister() {
-        return isEnglish() ? "§ePlease use /register <password> <confirmPassword> to register" : "§e请使用 /register <密码> <确认密码> 注册";
+        return translate("text.heos.registerInputHint");
     }
 
     public static String offlineNameHint() {
-        return isEnglish()
-                ? "§cInvalid session\n\n§eOffline players must retry with a username containing + - .\n§aAllowed symbols: + - ."
-                : "§c无效会话\n\n§e离线玩家请在用户名中加入符号后重试\n§a可用符号：+ - .";
+        return translate("text.heos.disallowedUsername");
     }
 
     public static String offlineNameLogOnly() {
@@ -32,85 +61,75 @@ public final class Messages {
     }
 
     public static String invalidOfflineNameLog() {
-        return isEnglish()
-                ? "§cOffline player used a name outside the allowed rule"
-                : "§c有不在规则内的离线玩家名称";
+        return translate("text.heos.disallowedUsername");
     }
 
     public static String loginTimeout() {
-        return isEnglish()
-                ? "§cLogin timed out! Please complete authentication within 60 seconds"
-                : "§c登录超时！请在60秒内完成登录";
+        return translate("text.heos.timeExpired");
     }
 
     public static String premiumWelcome() {
-        return isEnglish() ? "§aWelcome back, premium player!" : "§a欢迎回来，正版玩家！";
+        return translate("text.heos.onlinePlayerLogin");
     }
 
     public static String loginInputHint() {
-        return isEnglish() ? "§ePlease enter: /login <password>" : "§e请输入密码: /login <密码>";
+        return translate("text.heos.loginInputHint");
     }
 
     public static String registerInputHint() {
-        return isEnglish()
-                ? "§ePlease enter: /register <password> <confirmPassword>"
-                : "§e请输入密码: /register <密码> <确认密码>";
+        return translate("text.heos.registerRequired");
     }
 
     public static String alreadyLoggedIn() {
-        return isEnglish() ? "§cYou are already logged in" : "§c你已经登录了";
+        return translate("text.heos.alreadyAuthenticated");
     }
 
     public static String premiumNoLogin() {
-        return isEnglish() ? "§cPremium players do not need to log in" : "§c正版玩家无需登录";
+        return translate("text.heos.onlinePlayerLogin");
     }
 
     public static String premiumNoRegister() {
-        return isEnglish() ? "§cPremium players do not need to register" : "§c正版玩家无需注册";
+        return translate("text.heos.onlinePlayerLogin");
     }
 
     public static String notRegistered() {
-        return isEnglish()
-                ? "§cYou are not registered, please use /register <password> <confirmPassword>"
-                : "§c你还没有注册，请使用 /register <密码> <确认密码>";
+        return translate("text.heos.userNotRegistered");
     }
 
     public static String alreadyRegistered() {
-        return isEnglish()
-                ? "§cYou are already registered, please use /login <password>"
-                : "§c你已经注册过了，请使用 /login <密码>";
+        return translate("text.heos.alreadyRegistered");
     }
 
     public static String loginSuccess() {
-        return isEnglish() ? "§aLogin successful" : "§a登录成功";
+        return translate("text.heos.successfullyAuthenticated");
     }
 
     public static String wrongPassword() {
-        return isEnglish() ? "§cWrong password" : "§c密码错误";
+        return translate("text.heos.wrongPassword");
     }
 
     public static String passwordTooShort() {
-        return isEnglish() ? "§cPassword is too short, minimum 4 characters" : "§c密码太短，至少需要4个字符";
+        return translate("text.heos.minPasswordChars");
     }
 
     public static String passwordTooLong() {
-        return isEnglish() ? "§cPassword is too long, maximum 32 characters" : "§c密码太长，最多32个字符";
+        return translate("text.heos.maxPasswordChars");
     }
 
     public static String passwordMismatch() {
-        return isEnglish() ? "§cThe two passwords do not match" : "§c两次输入的密码不一致";
+        return translate("text.heos.matchPassword");
     }
 
     public static String registerFailed() {
-        return isEnglish() ? "§cRegistration failed, please contact an admin" : "§c注册失败，请联系管理员";
+        return translate("text.heos.registerRequired");
     }
 
     public static String registerSuccess() {
-        return isEnglish() ? "§aRegistration successful, logged in automatically" : "§a注册成功，已自动登录";
+        return translate("text.heos.registerSuccess");
     }
 
     public static String keepPasswordSafe() {
-        return isEnglish() ? "§ePlease keep your password safe" : "§e请妥善保管你的密码";
+        return translate("text.heos.successfullyAuthenticated");
     }
 
     public static boolean isMigrationReason(String reason) {
@@ -118,8 +137,7 @@ public final class Messages {
             return false;
         }
         String normalized = reason.toLowerCase();
-        return normalized.contains("数据正在进行迁移")
-                || normalized.contains("data migration in progress")
+        return normalized.contains("data migration in progress")
                 || normalized.contains("migration in progress");
     }
 
@@ -127,9 +145,35 @@ public final class Messages {
         return "HEOS_MIGRATION_BAN";
     }
 
+    public static String whitelistLogOnly() {
+        return "HEOS_WHITELIST";
+    }
+
+    public static String whitelistKick() {
+        return translate("text.heos.whitelistKick");
+    }
+
+    public static String whitelistDeniedLog(String username) {
+        return translate("text.heos.whitelistDeniedLog").formatted(username);
+    }
+
+    public static String banMessage(String reason, String expiry) {
+        return translate("text.heos.banMessage").formatted(reason, expiry);
+    }
+
+    public static String banIpMessage(String reason, String expiry) {
+        return translate("text.heos.banIpMessage").formatted(reason, expiry);
+    }
+
     public static String migrationBanAttemptLog(String username) {
-        return isEnglish()
-                ? "The migrated player is trying to connect: " + username
-                : "被迁移数据的玩家正在尝试连接: " + username;
+        return translate("text.heos.playerAlreadyOnline").formatted(username);
+    }
+
+    public static String updateSuppressionCrash(String detail) {
+        return translate("text.heos.updateSuppressionCrash").formatted(detail);
+    }
+
+    public static String unknownPosition() {
+        return translate("text.heos.unknownPosition");
     }
 }

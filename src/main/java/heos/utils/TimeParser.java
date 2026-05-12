@@ -71,12 +71,12 @@ public class TimeParser {
      */
     public static String formatExpiryTime(long expiryTime) {
         if (expiryTime == -1) {
-            return "永久 (Permanent)";
+            return "姘镐箙 (Permanent)";
         }
         
         long remaining = expiryTime - System.currentTimeMillis();
         if (remaining <= 0) {
-            return "已过期 (Expired)";
+            return "宸茶繃鏈?(Expired)";
         }
         
         long seconds = remaining / 1000;
@@ -86,15 +86,15 @@ public class TimeParser {
         long years = days / 365;
         
         if (years > 0) {
-            return years + " 年 (" + years + " year" + (years > 1 ? "s" : "") + ")";
+            return years + " 骞?(" + years + " year" + (years > 1 ? "s" : "") + ")";
         } else if (days > 0) {
-            return days + " 天 (" + days + " day" + (days > 1 ? "s" : "") + ")";
+            return days + " 澶?(" + days + " day" + (days > 1 ? "s" : "") + ")";
         } else if (hours > 0) {
-            return hours + " 小时 (" + hours + " hour" + (hours > 1 ? "s" : "") + ")";
+            return hours + " 灏忔椂 (" + hours + " hour" + (hours > 1 ? "s" : "") + ")";
         } else if (minutes > 0) {
-            return minutes + " 分钟 (" + minutes + " minute" + (minutes > 1 ? "s" : "") + ")";
+            return minutes + " 鍒嗛挓 (" + minutes + " minute" + (minutes > 1 ? "s" : "") + ")";
         } else {
-            return seconds + " 秒 (" + seconds + " second" + (seconds > 1 ? "s" : "") + ")";
+            return seconds + " 绉?(" + seconds + " second" + (seconds > 1 ? "s" : "") + ")";
         }
     }
     
@@ -103,7 +103,7 @@ public class TimeParser {
      */
     public static String formatAbsoluteTime(long expiryTime) {
         if (expiryTime == -1) {
-            return "永久 (Permanent)";
+            return "姘镐箙 (Permanent)";
         }
         return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(expiryTime));
     }

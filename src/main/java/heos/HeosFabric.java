@@ -17,9 +17,9 @@ import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.loader.api.FabricLoader;
 //? if < 1.21 {
-/*import net.minecraft.item.ItemStack;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.TypedActionResult;
+/*import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.item.ItemStack;
 *///?}
 
 /**
@@ -69,14 +69,14 @@ public class HeosFabric implements ModInitializer {
         );
         //?} else {
         /*UseItemCallback.EVENT.register((player, world, hand) -> {
-            ActionResult result = AuthEventHandler.onUseItem(player);
-            if (result == ActionResult.FAIL) {
-                return TypedActionResult.fail(ItemStack.EMPTY);
+            InteractionResult result = AuthEventHandler.onUseItem(player);
+            if (result == InteractionResult.FAIL) {
+                return InteractionResultHolder.fail(ItemStack.EMPTY);
             }
-            if (result == ActionResult.SUCCESS) {
-                return TypedActionResult.success(ItemStack.EMPTY);
+            if (result == InteractionResult.SUCCESS) {
+                return InteractionResultHolder.success(ItemStack.EMPTY);
             }
-            return TypedActionResult.pass(ItemStack.EMPTY);
+            return InteractionResultHolder.pass(ItemStack.EMPTY);
         });
         *///?}
 

@@ -1,236 +1,256 @@
 package heos.mixin;
 
 import heos.event.AuthEventHandler;
-import net.minecraft.network.packet.c2s.play.ButtonClickC2SPacket;
-import net.minecraft.network.packet.c2s.play.ChatMessageC2SPacket;
-import net.minecraft.network.packet.c2s.play.ClickSlotC2SPacket;
-import net.minecraft.network.packet.c2s.play.CloseHandledScreenC2SPacket;
-import net.minecraft.network.packet.c2s.play.CreativeInventoryActionC2SPacket;
-import net.minecraft.network.packet.c2s.play.HandSwingC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
-import net.minecraft.server.network.ServerPlayNetworkHandler;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.util.ActionResult;
+import heos.commands.SensitiveCommandHandler;
+import net.minecraft.network.protocol.game.ServerboundChatCommandPacket;
+import net.minecraft.network.protocol.game.ServerboundChatPacket;
+import net.minecraft.network.protocol.game.ServerboundContainerButtonClickPacket;
+import net.minecraft.network.protocol.game.ServerboundContainerClickPacket;
+import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
+import net.minecraft.network.protocol.game.ServerboundInteractPacket;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
+import net.minecraft.network.protocol.game.ServerboundSwingPacket;
+import net.minecraft.network.protocol.game.ServerboundUseItemOnPacket;
+import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.ServerGamePacketListenerImpl;
+import net.minecraft.world.InteractionResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import static net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket.Action.DROP_ALL_ITEMS;
-import static net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket.Action.DROP_ITEM;
-import static net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket.Action.SWAP_ITEM_WITH_OFFHAND;
+import static net.minecraft.network.protocol.game.ServerboundPlayerActionPacket.Action.DROP_ALL_ITEMS;
+import static net.minecraft.network.protocol.game.ServerboundPlayerActionPacket.Action.DROP_ITEM;
+import static net.minecraft.network.protocol.game.ServerboundPlayerActionPacket.Action.SWAP_ITEM_WITH_OFFHAND;
 
 /**
  * Restricts unauthenticated player network actions
  */
-@Mixin(ServerPlayNetworkHandler.class)
+@Mixin(ServerGamePacketListenerImpl.class)
 public abstract class ServerPlayNetworkHandlerMixin {
     @Shadow
-    public ServerPlayerEntity player;
+    public ServerPlayer player;
 
     @Inject(
-            method = "onChatMessage(Lnet/minecraft/network/packet/c2s/play/ChatMessageC2SPacket;)V",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/server/network/ServerPlayNetworkHandler;validateAcknowledgment(Lnet/minecraft/network/message/LastSeenMessageList$Acknowledgment;)Ljava/util/Optional;",
-                    shift = At.Shift.BEFORE
-            ),
+            method = "handleChatCommand(Lnet/minecraft/network/protocol/game/ServerboundChatCommandPacket;)V",
+            at = @At("HEAD"),
             cancellable = true
     )
-    private void onPlayerChat(ChatMessageC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onPlayerChat(this.player);
-        if (result == ActionResult.FAIL) {
+    private void onPlayerCommand(ServerboundChatCommandPacket packet, CallbackInfo ci) {
+        InteractionResult sensitiveResult = SensitiveCommandHandler.handle(this.player, packet.command());
+        if (sensitiveResult == InteractionResult.FAIL) {
+            ci.cancel();
+            return;
+        }
+
+        InteractionResult result = AuthEventHandler.onPlayerCommand(this.player, packet.command());
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }
 
     @Inject(
-            method = "onPlayerAction(Lnet/minecraft/network/packet/c2s/play/PlayerActionC2SPacket;)V",
+            method = "handleChat(Lnet/minecraft/network/protocol/game/ServerboundChatPacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/server/network/ServerGamePacketListenerImpl;unpackAndApplyLastSeen(Lnet/minecraft/network/chat/LastSeenMessages$Update;)Ljava/util/Optional;",
+                    shift = At.Shift.BEFORE
+            ),
+            cancellable = true
+    )
+    private void onPlayerChat(ServerboundChatPacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onPlayerChat(this.player);
+        if (result == InteractionResult.FAIL) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(
+            method = "handlePlayerAction(Lnet/minecraft/network/protocol/game/ServerboundPlayerActionPacket;)V",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onPlayerAction(PlayerActionC2SPacket packet, CallbackInfo ci) {
+    private void onPlayerAction(ServerboundPlayerActionPacket packet, CallbackInfo ci) {
         if (packet.getAction() == SWAP_ITEM_WITH_OFFHAND) {
-            ActionResult result = AuthEventHandler.onTakeItem(this.player);
-            if (result == ActionResult.FAIL) {
+            InteractionResult result = AuthEventHandler.onTakeItem(this.player);
+            if (result == InteractionResult.FAIL) {
                 ci.cancel();
             }
         }
 
         if (packet.getAction() == DROP_ITEM || packet.getAction() == DROP_ALL_ITEMS) {
-            ActionResult result = AuthEventHandler.onDropItem(this.player);
-            if (result == ActionResult.FAIL) {
+            InteractionResult result = AuthEventHandler.onDropItem(this.player);
+            if (result == InteractionResult.FAIL) {
                 ci.cancel();
             }
         }
     }
 
     @Inject(
-            method = "onPlayerMove(Lnet/minecraft/network/packet/c2s/play/PlayerMoveC2SPacket;)V",
+            method = "handleMovePlayer(Lnet/minecraft/network/protocol/game/ServerboundMovePlayerPacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onPlayerMove(PlayerMoveC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onPlayerMove(player, packet);
-        if (result == ActionResult.FAIL) {
+    private void onPlayerMove(ServerboundMovePlayerPacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onPlayerMove(player, packet);
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }
 
     @Inject(
-            method = "onPlayerInteractBlock(Lnet/minecraft/network/packet/c2s/play/PlayerInteractBlockC2SPacket;)V",
+            method = "handleUseItemOn(Lnet/minecraft/network/protocol/game/ServerboundUseItemOnPacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onPlayerInteractBlock(PlayerInteractBlockC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onUseBlock(this.player);
-        if (result == ActionResult.FAIL) {
+    private void onPlayerInteractBlock(ServerboundUseItemOnPacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onUseBlock(this.player);
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }
 
     @Inject(
-            method = "onPlayerInteractItem(Lnet/minecraft/network/packet/c2s/play/PlayerInteractItemC2SPacket;)V",
+            method = "handleUseItem(Lnet/minecraft/network/protocol/game/ServerboundUseItemPacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onPlayerInteractItem(PlayerInteractItemC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onUseItem(this.player);
-        if (result == ActionResult.FAIL) {
+    private void onPlayerInteractItem(ServerboundUseItemPacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onUseItem(this.player);
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }
 
     @Inject(
-            method = "onPlayerInteractEntity(Lnet/minecraft/network/packet/c2s/play/PlayerInteractEntityC2SPacket;)V",
+            method = "handleInteract(Lnet/minecraft/network/protocol/game/ServerboundInteractPacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onPlayerInteractEntity(PlayerInteractEntityC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onUseEntity(this.player);
-        if (result == ActionResult.FAIL) {
+    private void onPlayerInteractEntity(ServerboundInteractPacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onUseEntity(this.player);
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }
 
     @Inject(
-            method = "onHandSwing(Lnet/minecraft/network/packet/c2s/play/HandSwingC2SPacket;)V",
+            method = "handleAnimate(Lnet/minecraft/network/protocol/game/ServerboundSwingPacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onHandSwing(HandSwingC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onUseItem(this.player);
-        if (result == ActionResult.FAIL) {
+    private void onHandSwing(ServerboundSwingPacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onUseItem(this.player);
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }
 
     @Inject(
-            method = "onCreativeInventoryAction(Lnet/minecraft/network/packet/c2s/play/CreativeInventoryActionC2SPacket;)V",
+            method = "handleSetCreativeModeSlot(Lnet/minecraft/network/protocol/game/ServerboundSetCreativeModeSlotPacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onCreativeInventoryAction(CreativeInventoryActionC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onInventoryAction(this.player);
-        if (result == ActionResult.FAIL) {
+    private void onCreativeInventoryAction(ServerboundSetCreativeModeSlotPacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onInventoryAction(this.player);
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }
 
     @Inject(
-            method = "onClickSlot(Lnet/minecraft/network/packet/c2s/play/ClickSlotC2SPacket;)V",
+            method = "handleContainerClick(Lnet/minecraft/network/protocol/game/ServerboundContainerClickPacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onClickSlot(ClickSlotC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onInventoryAction(this.player);
-        if (result == ActionResult.FAIL) {
+    private void onClickSlot(ServerboundContainerClickPacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onInventoryAction(this.player);
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }
 
     @Inject(
-            method = "onCloseHandledScreen(Lnet/minecraft/network/packet/c2s/play/CloseHandledScreenC2SPacket;)V",
+            method = "handleContainerClose(Lnet/minecraft/network/protocol/game/ServerboundContainerClosePacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onCloseHandledScreen(CloseHandledScreenC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onInventoryAction(this.player);
-        if (result == ActionResult.FAIL) {
+    private void onCloseHandledScreen(ServerboundContainerClosePacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onInventoryAction(this.player);
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }
 
     @Inject(
-            method = "onButtonClick(Lnet/minecraft/network/packet/c2s/play/ButtonClickC2SPacket;)V",
+            method = "handleContainerButtonClick(Lnet/minecraft/network/protocol/game/ServerboundContainerButtonClickPacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onButtonClick(ButtonClickC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onInventoryAction(this.player);
-        if (result == ActionResult.FAIL) {
+    private void onButtonClick(ServerboundContainerButtonClickPacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onInventoryAction(this.player);
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }
 
     @Inject(
-            method = "onUpdateSelectedSlot(Lnet/minecraft/network/packet/c2s/play/UpdateSelectedSlotC2SPacket;)V",
+            method = "handleSetCarriedItem(Lnet/minecraft/network/protocol/game/ServerboundSetCarriedItemPacket;)V",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/network/NetworkThreadUtils;forceMainThread(Lnet/minecraft/network/packet/Packet;Lnet/minecraft/network/listener/PacketListener;Lnet/minecraft/server/world/ServerWorld;)V",
+                    target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/server/level/ServerLevel;)V",
                     shift = At.Shift.AFTER
             ),
             cancellable = true
     )
-    private void onUpdateSelectedSlot(UpdateSelectedSlotC2SPacket packet, CallbackInfo ci) {
-        ActionResult result = AuthEventHandler.onHotbarChange(this.player);
-        if (result == ActionResult.FAIL) {
+    private void onUpdateSelectedSlot(ServerboundSetCarriedItemPacket packet, CallbackInfo ci) {
+        InteractionResult result = AuthEventHandler.onHotbarChange(this.player);
+        if (result == InteractionResult.FAIL) {
             ci.cancel();
         }
     }

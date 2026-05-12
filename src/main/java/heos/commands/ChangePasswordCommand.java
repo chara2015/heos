@@ -7,22 +7,22 @@ import heos.interfaces.PlayerAuth;
 import heos.storage.PlayerData;
 import heos.utils.HeosLogger;
 import heos.utils.PasswordHasher;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Change password command
  */
 public class ChangePasswordCommand {
     
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
-            CommandManager.literal("changepassword")
-                .then(CommandManager.argument("oldPassword", StringArgumentType.string())
-                    .then(CommandManager.argument("newPassword", StringArgumentType.string())
-                        .then(CommandManager.argument("confirmPassword", StringArgumentType.string())
+            Commands.literal("changepassword")
+                .then(Commands.argument("oldPassword", StringArgumentType.string())
+                    .then(Commands.argument("newPassword", StringArgumentType.string())
+                        .then(Commands.argument("confirmPassword", StringArgumentType.string())
                             .executes(ChangePasswordCommand::execute)
                         )
                     )
@@ -31,10 +31,10 @@ public class ChangePasswordCommand {
         
         // Alias
         dispatcher.register(
-            CommandManager.literal("changepw")
-                .then(CommandManager.argument("oldPassword", StringArgumentType.string())
-                    .then(CommandManager.argument("newPassword", StringArgumentType.string())
-                        .then(CommandManager.argument("confirmPassword", StringArgumentType.string())
+            Commands.literal("changepw")
+                .then(Commands.argument("oldPassword", StringArgumentType.string())
+                    .then(Commands.argument("newPassword", StringArgumentType.string())
+                        .then(Commands.argument("confirmPassword", StringArgumentType.string())
                             .executes(ChangePasswordCommand::execute)
                         )
                     )
@@ -42,20 +42,27 @@ public class ChangePasswordCommand {
         );
     }
     
-    private static int execute(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
+    private static int execute(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
         
-        if (!source.isExecutedByPlayer()) {
-            source.sendError(Text.literal("此命令只能由玩家执行"));
+        if (!source.isPlayer()) {
+            source.sendFailure(Component.literal("This command can only be run by a player"));
             return 0;
         }
         
-        ServerPlayerEntity player = source.getPlayer();
+        ServerPlayer player = source.getPlayer();
+        String oldPassword = StringArgumentType.getString(context, "oldPassword");
+        String newPassword = StringArgumentType.getString(context, "newPassword");
+        String confirmPassword = StringArgumentType.getString(context, "confirmPassword");
+        return execute(player, oldPassword, newPassword, confirmPassword);
+    }
+
+    public static int execute(ServerPlayer player, String oldPassword, String newPassword, String confirmPassword) {
         PlayerAuth playerAuth = (PlayerAuth) player;
         
         // Check if player can skip auth (premium player)
         if (playerAuth.heos$canSkipAuth()) {
-            player.sendMessage(Text.literal("§c正版玩家无需修改密码！"), false);
+            player.sendSystemMessage(Component.literal("Premium players do not need to change a password"), false);
             return 0;
         }
         
@@ -63,48 +70,44 @@ public class ChangePasswordCommand {
         
         // Check if registered
         if (!data.isRegistered()) {
-            player.sendMessage(Text.literal("§c你还没有注册！请使用 /register <密码> <确认密码>"), false);
+            player.sendSystemMessage(Component.literal("You are not registered. Use /register <password> <confirmPassword>"), false);
             return 0;
         }
         
-        String oldPassword = StringArgumentType.getString(context, "oldPassword");
-        String newPassword = StringArgumentType.getString(context, "newPassword");
-        String confirmPassword = StringArgumentType.getString(context, "confirmPassword");
-        
         // Verify old password
         if (!PasswordHasher.verifyPassword(oldPassword, data.passwordHash)) {
-            player.sendMessage(Text.literal("§c旧密码错误！"), false);
+            player.sendSystemMessage(Component.literal("Old password is incorrect"), false);
             HeosLogger.warn("Player " + player.getName().getString() + " failed to change password (wrong old password)");
             return 0;
         }
         
         // Validate new password length
-        if (newPassword.length() < 4) {
-            player.sendMessage(Text.literal("§c新密码太短！至少需要4个字符"), false);
+        if (newPassword.length() < heos.Heos.getConfig().minPasswordLength) {
+            player.sendSystemMessage(Component.literal("New password is too short. Minimum length is " + heos.Heos.getConfig().minPasswordLength + " characters"), false);
             return 0;
         }
         
-        if (newPassword.length() > 32) {
-            player.sendMessage(Text.literal("§c新密码太长！最多32个字符"), false);
+        if (newPassword.length() > heos.Heos.getConfig().maxPasswordLength) {
+            player.sendSystemMessage(Component.literal("New password is too long. Maximum length is " + heos.Heos.getConfig().maxPasswordLength + " characters"), false);
             return 0;
         }
         
         // Check if new passwords match
         if (!newPassword.equals(confirmPassword)) {
-            player.sendMessage(Text.literal("§c两次输入的新密码不一致！"), false);
+            player.sendSystemMessage(Component.literal("New passwords do not match"), false);
             return 0;
         }
         
         // Check if new password is same as old
         if (oldPassword.equals(newPassword)) {
-            player.sendMessage(Text.literal("§c新密码不能与旧密码相同！"), false);
+            player.sendSystemMessage(Component.literal("New password cannot be the same as the old password"), false);
             return 0;
         }
         
         // Hash new password and save
         String newPasswordHash = PasswordHasher.hashPassword(newPassword);
         if (newPasswordHash == null) {
-            player.sendMessage(Text.literal("§c修改密码失败！请联系管理员"), false);
+            player.sendSystemMessage(Component.literal("Failed to change password. Please contact an administrator"), false);
             HeosLogger.error("Failed to hash new password for " + player.getName().getString());
             return 0;
         }
@@ -112,10 +115,10 @@ public class ChangePasswordCommand {
         data.passwordHash = newPasswordHash;
         data.save();
         
-        player.sendMessage(Text.literal("§a================================="), false);
-        player.sendMessage(Text.literal("§a密码修改成功！"), false);
-        player.sendMessage(Text.literal("§e请妥善保管你的新密码"), false);
-        player.sendMessage(Text.literal("§a================================="), false);
+        player.sendSystemMessage(Component.literal("================================="), false);
+        player.sendSystemMessage(Component.literal("Password changed successfully"), false);
+        player.sendSystemMessage(Component.literal("Keep your new password safe"), false);
+        player.sendSystemMessage(Component.literal("================================="), false);
         HeosLogger.info("Player " + player.getName().getString() + " changed password successfully");
         
         return 1;

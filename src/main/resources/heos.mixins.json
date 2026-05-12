@@ -7,7 +7,8 @@
     "ServerLoginNetworkHandlerMixin",
     "ServerPlayerEntityMixin",
     "PlayerManagerMixin",
-    "ServerPlayNetworkHandlerMixin"
+    "ServerPlayNetworkHandlerMixin",
+    "MinecraftServerMixin"
   ],
   "minVersion": "0.8",
   "injectors": {

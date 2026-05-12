@@ -3,8 +3,10 @@ package heos;
 import heos.config.HeosConfig;
 import heos.storage.BanData;
 import heos.storage.PlayerData;
+import heos.storage.StoragePaths;
 import heos.storage.WhitelistData;
 import heos.utils.HeosLogger;
+import heos.utils.LogFilterService;
 import net.minecraft.server.MinecraftServer;
 
 import java.nio.file.Path;
@@ -21,6 +23,10 @@ public class Heos {
     private static BanData banData;
     private static WhitelistData whitelistData;
     private static final Map<String, PlayerData> playerDataCache = new HashMap<>();
+
+    public static Path getHeosDirectory() {
+        return StoragePaths.root();
+    }
 
     public static HeosConfig getConfig() {
         if (config == null) {
@@ -49,6 +55,11 @@ public class Heos {
 
     public static void removePlayerData(String username) {
         playerDataCache.remove(username.toLowerCase());
+        PlayerData.delete(username);
+    }
+
+    public static void invalidatePlayerData(String username) {
+        playerDataCache.remove(username.toLowerCase());
     }
 
     static void onStartServer(MinecraftServer server) {
@@ -64,11 +75,18 @@ public class Heos {
         HeosLogger.info("Mod version: " + Heosmod.MOD_VERSION);
         HeosLogger.info("Mod author: " + Heosmod.MOD_AUTHOR);
         HeosLogger.info("License: " + Heosmod.MOD_LICENSE);
-        HeosLogger.info("Minecraft version: " + server.getVersion());
+        HeosLogger.info("Minecraft version: " + server.getServerVersion());
         HeosLogger.info("Game directory: " + gameDirectory);
-        HeosLogger.info("Online mode: " + server.isOnlineMode());
+        HeosLogger.info("Heos directory: " + getHeosDirectory());
+        HeosLogger.info("Online mode: " + server.usesAuthentication());
 
+        StoragePaths.ensureRoot();
+        HeosConfig.migrateLegacyConfig();
+        BanData.migrateLegacyBanFile();
+        WhitelistData.migrateLegacyWhitelistFile();
+        PlayerData.initializeStorage();
         config = HeosConfig.load();
+        LogFilterService.installConfiguredFilters();
         banData = BanData.load();
         whitelistData = WhitelistData.load();
 
@@ -76,6 +94,7 @@ public class Heos {
         HeosLogger.info("Whitelist: " + (config.enableWhitelist ? "Enabled" : "Disabled"));
         HeosLogger.info("Custom Ban: " + (config.enableCustomBan ? "Enabled" : "Disabled"));
         HeosLogger.info("Debug Logging: " + (config.enableDebugLogging ? "Enabled" : "Disabled"));
+        HeosLogger.info("日志过滤: " + (config.enableLogFilter ? "Enabled" : "Disabled"));
     }
 
     static void onStopServer(MinecraftServer server) {
@@ -83,6 +102,7 @@ public class Heos {
         HeosLogger.info("Shutting down Heos server...");
         HeosLogger.info("Clearing player data cache...");
         playerDataCache.clear();
+        PlayerData.closeStorage();
         HeosLogger.info("Goodbye!");
         HeosLogger.info("=================================");
     }

@@ -2,121 +2,121 @@ package heos.commands;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.tree.CommandNode;
 import heos.Heos;
 import heos.integrations.Permissions;
 import heos.storage.BanData;
 import heos.utils.HeosLogger;
+import heos.utils.Messages;
 import heos.utils.TimeParser;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.Text;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
+import java.lang.reflect.Field;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 @SuppressWarnings("unused")
 public class BanCommands {
+    private static final String DEFAULT_BAN_REASON = "\u4f60\u88ab\u5c01\u7981\u4e86";
 
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
-        dispatcher.register(
-            CommandManager.literal("ban")
-                .requires(Permissions.requireLevel(3))
-                .then(CommandManager.argument("player", StringArgumentType.string())
-                    .executes(ctx -> banPlayer(ctx, null, "未指定原因 (No reason specified)"))
-                    .then(CommandManager.argument("time", StringArgumentType.string())
-                        .executes(ctx -> {
-                            String timeStr = StringArgumentType.getString(ctx, "time");
-                            if (!timeStr.matches("^-?\\d+[smhdy]?$")) {
-                                return banPlayer(ctx, null, timeStr);
-                            }
-                            return banPlayer(ctx, timeStr, "未指定原因 (No reason specified)");
-                        })
-                        .then(CommandManager.argument("reason", StringArgumentType.greedyString())
-                            .executes(ctx -> banPlayer(ctx,
-                                StringArgumentType.getString(ctx, "time"),
-                                StringArgumentType.getString(ctx, "reason")))
-                        )
-                    )
-                )
-        );
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        if (!Heos.getConfig().enableCustomBan) {
+            HeosLogger.info("Custom ban disabled, keeping vanilla ban commands");
+            return;
+        }
 
-        dispatcher.register(
-            CommandManager.literal("ban-ip")
-                .requires(Permissions.requireLevel(3))
-                .then(CommandManager.argument("ip", StringArgumentType.string())
-                    .executes(ctx -> banIp(ctx, null, "未指定原因 (No reason specified)"))
-                    .then(CommandManager.argument("time", StringArgumentType.string())
-                        .executes(ctx -> {
-                            String timeStr = StringArgumentType.getString(ctx, "time");
-                            if (!timeStr.matches("^-?\\d+[smhdy]?$")) {
-                                return banIp(ctx, null, timeStr);
-                            }
-                            return banIp(ctx, timeStr, "未指定原因 (No reason specified)");
-                        })
-                        .then(CommandManager.argument("reason", StringArgumentType.greedyString())
-                            .executes(ctx -> banIp(ctx,
-                                StringArgumentType.getString(ctx, "time"),
-                                StringArgumentType.getString(ctx, "reason")))
-                        )
-                    )
-                )
-        );
+        removeVanillaBanCommands(dispatcher);
 
+        dispatcher.register(customBanCommand());
+        dispatcher.register(customBanIpCommand());
+        dispatcher.register(customUnbanCommand());
         dispatcher.register(
-            CommandManager.literal("unban")
-                .requires(Permissions.requireLevel(3))
-                .then(CommandManager.argument("player", StringArgumentType.string())
-                    .executes(BanCommands::unbanPlayer)
-                )
-        );
-
-        dispatcher.register(
-            CommandManager.literal("unban-ip")
-                .requires(Permissions.requireLevel(3))
-                .then(CommandManager.argument("ip", StringArgumentType.string())
-                    .executes(BanCommands::unbanIp)
-                )
-        );
-
-        dispatcher.register(
-            CommandManager.literal("banlist")
+            Commands.literal("banlist")
                 .requires(Permissions.requireLevel(3))
                 .executes(BanCommands::listBans)
         );
+        HeosLogger.info("Registered custom ban commands");
     }
 
-    private static int banPlayer(CommandContext<ServerCommandSource> context, String timeStr, String reason) {
-        ServerCommandSource source = context.getSource();
+    private static LiteralArgumentBuilder<CommandSourceStack> customBanCommand() {
+        return Commands.literal("ban")
+                .requires(Permissions.requireLevel(3))
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .executes(ctx -> banPlayer(ctx, null, DEFAULT_BAN_REASON))
+                        .then(Commands.argument("time", StringArgumentType.string())
+                                .executes(ctx -> banPlayer(ctx,
+                                        StringArgumentType.getString(ctx, "time"),
+                                        DEFAULT_BAN_REASON))
+                                .then(Commands.argument("reason", StringArgumentType.greedyString())
+                                        .executes(ctx -> banPlayer(ctx,
+                                                StringArgumentType.getString(ctx, "time"),
+                                                StringArgumentType.getString(ctx, "reason")))
+                                )
+                        )
+                );
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> customUnbanCommand() {
+        return Commands.literal("unban")
+                .requires(Permissions.requireLevel(3))
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .executes(BanCommands::unbanPlayer)
+                );
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> customBanIpCommand() {
+        return Commands.literal("ban-ip")
+                .requires(Permissions.requireLevel(3))
+                .then(Commands.argument("ip", StringArgumentType.string())
+                        .executes(ctx -> banIp(ctx, null, DEFAULT_BAN_REASON))
+                        .then(Commands.argument("time", StringArgumentType.string())
+                                .executes(ctx -> banIp(ctx,
+                                        StringArgumentType.getString(ctx, "time"),
+                                        DEFAULT_BAN_REASON))
+                                .then(Commands.argument("reason", StringArgumentType.greedyString())
+                                        .executes(ctx -> banIp(ctx,
+                                                StringArgumentType.getString(ctx, "time"),
+                                                StringArgumentType.getString(ctx, "reason")))
+                                )
+                        )
+                );
+    }
+
+    private static int banPlayer(CommandContext<CommandSourceStack> context, String timeStr, String reason) {
+        CommandSourceStack source = context.getSource();
         String targetUsername = StringArgumentType.getString(context, "player");
 
         long expiryTime = -1;
         if (timeStr != null) {
             expiryTime = TimeParser.parseTime(timeStr);
             if (expiryTime == -2) {
-                source.sendError(Text.literal("§c无效的时间格式！使用: 15s, 3m, 24h, 7d, 1y 或 -1 (永久)"));
+                source.sendFailure(Component.literal("Invalid time format. Use: 15s, 3m, 24h, 7d, 1y or -1"));
                 return 0;
             }
         }
 
-        ServerPlayerEntity targetPlayer = source.getServer().getPlayerManager().getPlayer(targetUsername);
-        UUID targetUuid = targetPlayer != null ? targetPlayer.getUuid() : null;
+        ServerPlayer targetPlayer = source.getServer().getPlayerList().getPlayerByName(targetUsername);
+        UUID targetUuid = targetPlayer != null ? targetPlayer.getUUID() : null;
 
         BanData banData = Heos.getBanData();
-        banData.addPlayerBan(targetUsername, targetUuid, reason, expiryTime, source.getName());
+        banData.addPlayerBan(targetUsername, targetUuid, reason, expiryTime, source.getTextName());
 
         final String timeInfo = TimeParser.formatExpiryTime(expiryTime);
-        source.sendFeedback(() -> Text.literal("§a已封禁玩家 " + targetUsername), true);
-        source.sendFeedback(() -> Text.literal("§7原因: " + reason), false);
-        source.sendFeedback(() -> Text.literal("§7时长: " + timeInfo), false);
+        source.sendSuccess(() -> Component.literal("Banned player " + targetUsername), true);
+        source.sendSuccess(() -> Component.literal("Reason: " + reason), false);
+        source.sendSuccess(() -> Component.literal("Duration: " + timeInfo), false);
 
-        HeosLogger.info(source.getName() + " banned " + targetUsername + " for " + timeInfo + " - Reason: " + reason);
+        HeosLogger.info(source.getTextName() + " banned " + targetUsername + " for " + timeInfo + " - Reason: " + reason);
 
         if (targetPlayer != null) {
-            String kickMessage = Heos.getConfig().banMessageFormat
-                .replace("%reason%", reason)
-                .replace("%expiry%", TimeParser.formatAbsoluteTime(expiryTime));
-            targetPlayer.networkHandler.disconnect(Text.literal(kickMessage));
+            String kickMessage = Messages.banMessage(reason, TimeParser.formatAbsoluteTime(expiryTime));
+            targetPlayer.connection.disconnect(Component.literal(kickMessage));
         }
 
         return 1;
@@ -128,104 +128,114 @@ public class BanCommands {
         return 1;
     }
 
-    private static int banIp(CommandContext<ServerCommandSource> context, String timeStr, String reason) {
-        ServerCommandSource source = context.getSource();
+    private static int banIp(CommandContext<CommandSourceStack> context, String timeStr, String reason) {
+        CommandSourceStack source = context.getSource();
         String targetIp = StringArgumentType.getString(context, "ip");
 
         long expiryTime = -1;
         if (timeStr != null) {
             expiryTime = TimeParser.parseTime(timeStr);
             if (expiryTime == -2) {
-                source.sendError(Text.literal("§c无效的时间格式！使用: 15s, 3m, 24h, 7d, 1y 或 -1 (永久)"));
+                source.sendFailure(Component.literal("Invalid time format. Use: 15s, 3m, 24h, 7d, 1y or -1"));
                 return 0;
             }
         }
 
         BanData banData = Heos.getBanData();
-        banData.addIpBan(targetIp, reason, expiryTime, source.getName());
+        banData.addIpBan(targetIp, reason, expiryTime, source.getTextName());
 
         final String timeInfo = TimeParser.formatExpiryTime(expiryTime);
-        source.sendFeedback(() -> Text.literal("§a已封禁IP " + targetIp), true);
-        source.sendFeedback(() -> Text.literal("§7原因: " + reason), false);
-        source.sendFeedback(() -> Text.literal("§7时长: " + timeInfo), false);
+        source.sendSuccess(() -> Component.literal("Banned IP " + targetIp), true);
+        source.sendSuccess(() -> Component.literal("Reason: " + reason), false);
+        source.sendSuccess(() -> Component.literal("Duration: " + timeInfo), false);
 
-        HeosLogger.info(source.getName() + " banned IP " + targetIp + " for " + timeInfo + " - Reason: " + reason);
+        HeosLogger.info(source.getTextName() + " banned IP " + targetIp + " for " + timeInfo + " - Reason: " + reason);
 
-        String kickMessage = Heos.getConfig().banIpMessageFormat
-            .replace("%reason%", reason)
-            .replace("%expiry%", TimeParser.formatAbsoluteTime(expiryTime));
-
-        for (ServerPlayerEntity player : source.getServer().getPlayerManager().getPlayerList()) {
-            String playerIp = player.getIp();
-            if (playerIp.equals(targetIp)) {
-                player.networkHandler.disconnect(Text.literal(kickMessage));
+        String kickMessage = Messages.banIpMessage(reason, TimeParser.formatAbsoluteTime(expiryTime));
+        for (ServerPlayer player : source.getServer().getPlayerList().getPlayers()) {
+            if (targetIp.equals(player.getIpAddress())) {
+                player.connection.disconnect(Component.literal(kickMessage));
             }
         }
 
         return 1;
     }
 
-    private static int unbanPlayer(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
+    private static int unbanPlayer(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
         String targetUsername = StringArgumentType.getString(context, "player");
 
         BanData banData = Heos.getBanData();
-        if (banData.removePlayerBan(targetUsername)) {
-            source.sendFeedback(() -> Text.literal("§a已解除玩家 " + targetUsername + " 的封禁"), true);
-            HeosLogger.info(source.getName() + " unbanned " + targetUsername);
+        boolean removedPlayer = banData.removePlayerBan(targetUsername);
+        boolean removedIp = banData.removeIpBan(targetUsername);
+        if (removedPlayer || removedIp) {
+            source.sendSuccess(() -> Component.literal("Unbanned " + targetUsername), true);
+            HeosLogger.info(source.getTextName() + " unbanned " + targetUsername);
             return 1;
-        } else {
-            source.sendError(Text.literal("§c玩家 " + targetUsername + " 没有被封禁"));
-            return 0;
         }
+
+        source.sendFailure(Component.literal(targetUsername + " is not banned"));
+        return 0;
     }
 
-    private static int unbanIp(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
-        String targetIp = StringArgumentType.getString(context, "ip");
-
+    private static int listBans(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
         BanData banData = Heos.getBanData();
-        if (banData.removeIpBan(targetIp)) {
-            source.sendFeedback(() -> Text.literal("§a已解除IP " + targetIp + " 的封禁"), true);
-            HeosLogger.info(source.getName() + " unbanned IP " + targetIp);
-            return 1;
-        } else {
-            source.sendError(Text.literal("§cIP " + targetIp + " 没有被封禁"));
-            return 0;
-        }
-    }
+        banData.removeExpiredBans();
 
-    private static int listBans(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
-        BanData banData = Heos.getBanData();
-
-        source.sendFeedback(() -> Text.literal("§e================================="), false);
-        source.sendFeedback(() -> Text.literal("§e封禁列表 (Ban List)"), false);
-        source.sendFeedback(() -> Text.literal("§e================================="), false);
+        source.sendSuccess(() -> Component.literal("================================="), false);
+        source.sendSuccess(() -> Component.literal("Ban List"), false);
+        source.sendSuccess(() -> Component.literal("================================="), false);
 
         if (banData.playerBans.isEmpty() && banData.ipBans.isEmpty()) {
-            source.sendFeedback(() -> Text.literal("§7没有封禁记录"), false);
+            source.sendSuccess(() -> Component.literal("No ban records"), false);
             return 1;
         }
 
         if (!banData.playerBans.isEmpty()) {
-            source.sendFeedback(() -> Text.literal("§6玩家封禁 (" + banData.playerBans.size() + "):"), false);
+            source.sendSuccess(() -> Component.literal("Player bans (" + banData.playerBans.size() + "):"), false);
             for (BanData.BanEntry ban : banData.playerBans) {
                 final String ti = TimeParser.formatExpiryTime(ban.expiryTime);
-                source.sendFeedback(() -> Text.literal("§7- " + ban.username + " §8| §7" + ti + " §8| §7" + ban.reason), false);
+                source.sendSuccess(() -> Component.literal("- " + ban.username + " | " + ti + " | " + ban.reason), false);
             }
         }
 
         if (!banData.ipBans.isEmpty()) {
-            source.sendFeedback(() -> Text.literal("§6IP封禁 (" + banData.ipBans.size() + "):"), false);
+            source.sendSuccess(() -> Component.literal("IP bans (" + banData.ipBans.size() + "):"), false);
             for (BanData.IpBanEntry ban : banData.ipBans) {
                 final String ti = TimeParser.formatExpiryTime(ban.expiryTime);
-                source.sendFeedback(() -> Text.literal("§7- " + ban.ip + " §8| §7" + ti + " §8| §7" + ban.reason), false);
+                source.sendSuccess(() -> Component.literal("- " + ban.ip + " | " + ti + " | " + ban.reason), false);
             }
         }
 
-        source.sendFeedback(() -> Text.literal("§e================================="), false);
-
+        source.sendSuccess(() -> Component.literal("================================="), false);
         return 1;
+    }
+
+    private static void removeVanillaBanCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
+        removeRootCommand(dispatcher, "ban");
+        removeRootCommand(dispatcher, "pardon");
+        removeRootCommand(dispatcher, "ban-ip");
+        removeRootCommand(dispatcher, "pardon-ip");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void removeRootCommand(CommandDispatcher<CommandSourceStack> dispatcher, String command) {
+        try {
+            CommandNode<CommandSourceStack> root = dispatcher.getRoot();
+            removeFromCommandMap(root, "children", command);
+            removeFromCommandMap(root, "literals", command);
+            removeFromCommandMap(root, "arguments", command);
+        } catch (ReflectiveOperationException e) {
+            HeosLogger.warn("Failed to remove vanilla command /" + command + ": " + e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void removeFromCommandMap(CommandNode<CommandSourceStack> node, String fieldName, String command) throws ReflectiveOperationException {
+        Field field = CommandNode.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        Map<String, CommandNode<CommandSourceStack>> map = (Map<String, CommandNode<CommandSourceStack>>) field.get(node);
+        map.remove(command.toLowerCase(Locale.ROOT));
     }
 }

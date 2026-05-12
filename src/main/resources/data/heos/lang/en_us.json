@@ -43,5 +43,11 @@
   "text.heos.accountNotFound": "§cOnline account not found.",
   "text.heos.accountCheckFailed": "§cMojang server is unavailable. Please try again later.",
   "text.heos.unknownError": "§4An unknown error has occurred.",
-  "text.heos.databaseError": "§4Database error, see console for details."
+  "text.heos.databaseError": "§4Database error, see console for details.",
+  "text.heos.updateSuppressionCrash": "§cUpdate suppression happened at %s",
+  "text.heos.unknownPosition": "unknown position",
+  "text.heos.whitelistKick": "You are not on the whitelist.",
+  "text.heos.whitelistDeniedLog": "Name player is not on the whitelist: %s",
+  "text.heos.banMessage": "You have been banned\nReason: %s\nExpires: %s",
+  "text.heos.banIpMessage": "Your IP has been banned\nReason: %s\nExpires: %s"
 }

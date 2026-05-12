@@ -26,3 +26,9 @@ bin/
 
 run/
 /versions/*/src/
+
+# local server data
+server/heos/
+**/server/heos/
+**/heos/secret.key
+**/heos/player_data.db*

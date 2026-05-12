@@ -1,16 +1,18 @@
 package heos.mixin;
 
+import heos.Heos;
 import heos.interfaces.PlayerAuth;
 import heos.storage.PlayerData;
 import heos.utils.HeosLogger;
 import heos.utils.Messages;
-import net.minecraft.block.Blocks;
-import net.minecraft.network.ClientConnection;
-import net.minecraft.network.packet.s2c.play.BlockUpdateS2CPacket;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.math.BlockPos;
+import heos.utils.TpsDisplayService;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.Connection;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.Blocks;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -20,7 +22,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Implements PlayerAuth interface for ServerPlayerEntity
  */
-@Mixin(ServerPlayerEntity.class)
+@Mixin(ServerPlayer.class)
 public abstract class ServerPlayerEntityMixin extends EntityMixin implements PlayerAuth {
 
     @Unique
@@ -39,7 +41,7 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
     private PlayerData heos$playerData = null;
 
     @Unique
-    private long heos$kickTimer = 60 * 20;
+    private long heos$kickTimer = Heos.getConfig().loginTimeout * 20L;
 
     @Unique
     private long heos$lastAuthPromptTick = -40;
@@ -47,17 +49,18 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
     @Override
     public void heos$setAuthenticated(boolean authenticated) {
         this.heos$authenticated = authenticated;
-        ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
+        ServerPlayer player = (ServerPlayer) (Object) this;
 
         if (authenticated) {
             heos$lastAuthPromptTick = -40;
             HeosLogger.debug("Player authenticated: " + player.getName().getString());
-            heos$kickTimer = 60 * 20;
+            heos$kickTimer = Heos.getConfig().loginTimeout * 20L;
+            heos$onAuthenticated();
 
-            ServerWorld world = heos$getServerWorld(player);
-            BlockPos pos = player.getBlockPos();
-            world.updateListeners(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
-            world.updateListeners(pos.up(), world.getBlockState(pos.up()), world.getBlockState(pos.up()), 3);
+            ServerLevel world = heos$getServerWorld(player);
+            BlockPos pos = player.blockPosition();
+            world.sendBlockUpdated(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
+            world.sendBlockUpdated(pos.above(), world.getBlockState(pos.above()), world.getBlockState(pos.above()), 3);
         }
     }
 
@@ -92,8 +95,8 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
     }
 
     @Override
-    public void heos$setIpAddress(ClientConnection connection) {
-        String address = connection.getAddress().toString();
+    public void heos$setIpAddress(Connection connection) {
+        String address = connection.getRemoteAddress().toString();
         if (address.contains("/")) {
             address = address.substring(address.indexOf('/') + 1);
         }
@@ -120,22 +123,39 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
 
     @Override
     public void heos$sendAuthMessage() {
-        ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
+        ServerPlayer player = (ServerPlayer) (Object) this;
         if (heos$playerData == null) {
             return;
         }
 
-        long currentTick = heos$getServerWorld(player).getTime();
+        long currentTick = heos$getServerWorld(player).getGameTime();
         if (heos$lastAuthPromptTick >= 0 && currentTick - heos$lastAuthPromptTick < 40) {
             return;
         }
         heos$lastAuthPromptTick = currentTick;
 
         if (heos$playerData.isRegistered()) {
-            player.sendMessage(Text.literal(Messages.authPromptLogin()), false);
+            player.sendSystemMessage(Component.literal(Messages.authPromptLogin()), false);
         } else {
-            player.sendMessage(Text.literal(Messages.authPromptRegister()), false);
+            player.sendSystemMessage(Component.literal(Messages.authPromptRegister()), false);
         }
+    }
+
+    @Override
+    public void heos$onAuthenticated() {
+        ServerPlayer player = (ServerPlayer) (Object) this;
+        HeosLogger.info("Player fully authenticated: " + player.getName().getString());
+        heos$startTpsDisplay();
+    }
+
+    @Override
+    public void heos$startTpsDisplay() {
+        TpsDisplayService.start((ServerPlayer) (Object) this);
+    }
+
+    @Override
+    public void heos$stopTpsDisplay() {
+        TpsDisplayService.stop((ServerPlayer) (Object) this);
     }
 
     @Override
@@ -149,24 +169,24 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
     }
 
     @Unique
-    private ServerWorld heos$getServerWorld(ServerPlayerEntity player) {
-        //? if >= 1.21.11 {
-        return (ServerWorld) player.getEntityWorld();
+    private ServerLevel heos$getServerWorld(ServerPlayer player) {
+        //? if >= 1.21.6 {
+        return (ServerLevel) player.level();
         //?} else {
-        /*return player.getServerWorld();
+        /*return player.serverLevel();
         *///?}
     }
 
-    @Inject(method = "playerTick()V", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "doTick()V", at = @At("HEAD"), cancellable = true)
     private void onPlayerTick(CallbackInfo ci) {
         if (!heos$authenticated) {
-            ServerPlayerEntity player = (ServerPlayerEntity) (Object) this;
-            if (player.getClass() != ServerPlayerEntity.class) {
+            ServerPlayer player = (ServerPlayer) (Object) this;
+            if (player.getClass() != ServerPlayer.class) {
                 return;
             }
 
-            if (heos$kickTimer <= 0 && player.networkHandler.isConnectionOpen()) {
-                player.networkHandler.disconnect(Text.literal(Messages.loginTimeout()));
+            if (heos$kickTimer <= 0 && player.connection.isAcceptingMessages()) {
+                player.connection.disconnect(Component.literal(Messages.loginTimeout()));
             } else {
                 if (heos$kickTimer % 200 == 0) {
                     heos$sendAuthMessage();
@@ -174,25 +194,25 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
                 --heos$kickTimer;
             }
 
-            ServerWorld world = heos$getServerWorld(player);
-            BlockPos pos = player.getBlockPos();
+            ServerLevel world = heos$getServerWorld(player);
+            BlockPos pos = player.blockPosition();
             if (world.getBlockState(pos).getBlock().equals(Blocks.NETHER_PORTAL)
-                    || world.getBlockState(pos.up()).getBlock().equals(Blocks.NETHER_PORTAL)) {
-                player.teleport(pos.getX() + 0.5, player.getY(), pos.getZ() + 0.5, false);
+                    || world.getBlockState(pos.above()).getBlock().equals(Blocks.NETHER_PORTAL)) {
+                player.randomTeleport(pos.getX() + 0.5, player.getY(), pos.getZ() + 0.5, false);
 
-                BlockUpdateS2CPacket feetPacket = new BlockUpdateS2CPacket(pos, Blocks.AIR.getDefaultState());
-                player.networkHandler.sendPacket(feetPacket);
+                ClientboundBlockUpdatePacket feetPacket = new ClientboundBlockUpdatePacket(pos, Blocks.AIR.defaultBlockState());
+                player.connection.send(feetPacket);
 
-                BlockUpdateS2CPacket headPacket = new BlockUpdateS2CPacket(pos.up(), Blocks.AIR.getDefaultState());
-                player.networkHandler.sendPacket(headPacket);
+                ClientboundBlockUpdatePacket headPacket = new ClientboundBlockUpdatePacket(pos.above(), Blocks.AIR.defaultBlockState());
+                player.connection.send(headPacket);
             }
 
             ci.cancel();
         }
     }
 
-    @Inject(method = "copyFrom(Lnet/minecraft/server/network/ServerPlayerEntity;Z)V", at = @At("RETURN"))
-    private void onCopyFrom(ServerPlayerEntity oldPlayer, boolean alive, CallbackInfo ci) {
+    @Inject(method = "restoreFrom(Lnet/minecraft/server/level/ServerPlayer;Z)V", at = @At("RETURN"))
+    private void onCopyFrom(ServerPlayer oldPlayer, boolean alive, CallbackInfo ci) {
         PlayerAuth oldAuth = (PlayerAuth) oldPlayer;
         PlayerAuth newAuth = (PlayerAuth) (Object) this;
 
@@ -203,3 +223,4 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
         newAuth.heos$setIpAddress(oldAuth.heos$getIpAddress());
     }
 }
+

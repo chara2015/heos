@@ -11,7 +11,8 @@ import java.util.Base64;
  * Password hashing utility using PBKDF2
  */
 public class PasswordHasher {
-    private static final int ITERATIONS = 10000;
+    private static final int LEGACY_ITERATIONS = 10000;
+    private static final int CURRENT_ITERATIONS = 310000;
     private static final int KEY_LENGTH = 256;
     private static final String ALGORITHM = "PBKDF2WithHmacSHA256";
     
@@ -28,10 +29,9 @@ public class PasswordHasher {
             random.nextBytes(salt);
             
             // Hash password
-            byte[] hash = pbkdf2(password.toCharArray(), salt, ITERATIONS, KEY_LENGTH);
+            byte[] hash = pbkdf2(password.toCharArray(), salt, CURRENT_ITERATIONS, KEY_LENGTH);
             
-            // Encode to Base64 and return in format: salt:hash
-            return Base64.getEncoder().encodeToString(salt) + ":" + Base64.getEncoder().encodeToString(hash);
+            return CURRENT_ITERATIONS + ":" + Base64.getEncoder().encodeToString(salt) + ":" + Base64.getEncoder().encodeToString(hash);
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             HeosLogger.error("Failed to hash password", e);
             return null;
@@ -46,24 +46,23 @@ public class PasswordHasher {
      */
     public static boolean verifyPassword(String password, String storedHash) {
         try {
-            // Split stored hash into salt and hash
-            String[] parts = storedHash.split(":");
-            if (parts.length != 2) {
+            ParsedHash parsedHash = parseHash(storedHash);
+            if (parsedHash == null) {
                 return false;
             }
             
-            byte[] salt = Base64.getDecoder().decode(parts[0]);
-            byte[] hash = Base64.getDecoder().decode(parts[1]);
+            byte[] testHash = pbkdf2(password.toCharArray(), parsedHash.salt, parsedHash.iterations, KEY_LENGTH);
             
-            // Hash the input password with the same salt
-            byte[] testHash = pbkdf2(password.toCharArray(), salt, ITERATIONS, KEY_LENGTH);
-            
-            // Compare hashes
-            return slowEquals(hash, testHash);
+            return slowEquals(parsedHash.hash, testHash);
         } catch (Exception e) {
             HeosLogger.error("Failed to verify password", e);
             return false;
         }
+    }
+
+    public static boolean needsRehash(String storedHash) {
+        ParsedHash parsedHash = parseHash(storedHash);
+        return parsedHash == null || parsedHash.iterations < CURRENT_ITERATIONS;
     }
     
     /**
@@ -75,6 +74,32 @@ public class PasswordHasher {
         SecretKeyFactory skf = SecretKeyFactory.getInstance(ALGORITHM);
         return skf.generateSecret(spec).getEncoded();
     }
+
+    private static ParsedHash parseHash(String storedHash) {
+        if (storedHash == null || storedHash.isEmpty()) {
+            return null;
+        }
+        String[] parts = storedHash.split(":");
+        try {
+            if (parts.length == 2) {
+                return new ParsedHash(
+                        LEGACY_ITERATIONS,
+                        Base64.getDecoder().decode(parts[0]),
+                        Base64.getDecoder().decode(parts[1])
+                );
+            }
+            if (parts.length == 3) {
+                return new ParsedHash(
+                        Integer.parseInt(parts[0]),
+                        Base64.getDecoder().decode(parts[1]),
+                        Base64.getDecoder().decode(parts[2])
+                );
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
+    }
     
     /**
      * Constant-time comparison to prevent timing attacks
@@ -85,6 +110,9 @@ public class PasswordHasher {
             diff |= a[i] ^ b[i];
         }
         return diff == 0;
+    }
+
+    private record ParsedHash(int iterations, byte[] salt, byte[] hash) {
     }
 }
 

@@ -2,10 +2,28 @@ plugins {
     id("java")
     id("java-library")
     kotlin("jvm") version "2.2.0"
-    id("fabric-loom") version "1.14-SNAPSHOT"
+    id("fabric-loom") version "1.14-SNAPSHOT" apply false
+    id("net.fabricmc.fabric-loom") version "1.16-SNAPSHOT" apply false
     id("com.google.devtools.ksp") version "2.2.0-2.0.2"
     id("dev.kikugie.stonecutter")
     id("me.modmuss50.mod-publish-plugin") version "0.8.4"
+}
+
+allprojects {
+    configurations.all {
+        resolutionStrategy {
+            force("org.jetbrains.kotlin:kotlin-reflect:2.2.0")
+        }
+    }
+}
+
+val minecraftVersion = property("minecraft_version").toString()
+val isMinecraft26Plus = minecraftVersion.substringBefore('.').toIntOrNull()?.let { it >= 26 } == true
+
+if (isMinecraft26Plus) {
+    apply(plugin = "net.fabricmc.fabric-loom")
+} else {
+    apply(plugin = "fabric-loom")
 }
 
 val modMetadata = loadHeosmodMetadata(rootProject.file("src/main/java/heos/Heosmod.java"))
@@ -33,9 +51,21 @@ repositories {
     maven(url = "https://oss.sonatype.org/content/repositories/snapshots")
 }
 
-base.archivesName = "${modId}-mc${property("minecraft_version")}"
+val supportedVersionsForArtifact = property("supported_versions")
+    .toString()
+    .split(",")
+    .map(String::trim)
+    .filter(String::isNotEmpty)
+val minecraftVersionLabel = when (supportedVersionsForArtifact.size) {
+    0 -> property("minecraft_version").toString()
+    1 -> supportedVersionsForArtifact.first()
+    else -> "${supportedVersionsForArtifact.first()}-${supportedVersionsForArtifact.last()}"
+}
+
+base.archivesName = "${modId}-mc$minecraftVersionLabel"
 
 val awFile = when {
+    isMinecraft26Plus -> "heos.26.1.2.accesswidener"
     stonecutter.eval(stonecutter.current.version, ">=1.21.11") -> "heos.1.21.11.accesswidener"
     stonecutter.eval(stonecutter.current.version, ">=1.21.5") -> "heos.1.21.5.accesswidener"
     stonecutter.eval(stonecutter.current.version, ">=1.21.2") -> "heos.1.21.2.accesswidener"
@@ -46,17 +76,17 @@ val awFile = when {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
+        languageVersion.set(JavaLanguageVersion.of(if (isMinecraft26Plus) 25 else 21))
     }
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = if (isMinecraft26Plus) JavaVersion.VERSION_25 else JavaVersion.VERSION_21
+    targetCompatibility = if (isMinecraft26Plus) JavaVersion.VERSION_25 else JavaVersion.VERSION_21
 }
 
-loom {
+extensions.configure<net.fabricmc.loom.api.LoomGradleExtensionAPI>("loom") {
     splitEnvironmentSourceSets()
-    accessWidenerPath = rootProject.file("src/main/resources/accesswidener/$awFile")
+    accessWidenerPath.set(rootProject.file("src/main/resources/accesswidener/$awFile"))
     mods {
-        create(modId) {
+        create(modId).apply {
             sourceSet(sourceSets["main"])
             sourceSet(sourceSets["client"])
         }
@@ -64,21 +94,13 @@ loom {
 
     runConfigs.all {
         ideConfigGenerated(true)
-        runDir = "run"
+        runDir("run")
         
         vmArgs(
             "--add-opens", "java.base/sun.misc=ALL-UNNAMED",
             "--add-opens", "java.base/java.lang=ALL-UNNAMED"
         )
     }
-}
-
-fabricApi.configureTests {
-    createSourceSet = true
-    modId = "${modId}-test"
-    eula = true
-    enableClientGameTests = false
-    enableGameTests = false
 }
 
 afterEvaluate {
@@ -90,15 +112,29 @@ afterEvaluate {
 
 dependencies {
     // Fabric
-    minecraft("com.mojang:minecraft:${property("minecraft_version")}")
-    mappings("net.fabricmc:yarn:${property("yarn_mappings")}:v2")
+    add("minecraft", "com.mojang:minecraft:${property("minecraft_version")}")
+    if (!isMinecraft26Plus) {
+        add("mappings", project.extensions.getByType<net.fabricmc.loom.api.LoomGradleExtensionAPI>().officialMojangMappings())
+    }
 
-    modImplementation("net.fabricmc:fabric-loader:${property("loader_version")}")
-    modImplementation("net.fabricmc.fabric-api:fabric-api:${property("fabric_version")}")
+    if (isMinecraft26Plus) {
+        add("implementation", "net.fabricmc:fabric-loader:${property("loader_version")}")
+        add("implementation", "net.fabricmc.fabric-api:fabric-api:${property("fabric_version")}")
+    } else {
+        add("modImplementation", "net.fabricmc:fabric-loader:${property("loader_version")}")
+        add("modImplementation", "net.fabricmc.fabric-api:fabric-api:${property("fabric_version")}")
+    }
     
     // Mixin Extras for advanced mixin features
-    implementation("io.github.llamalad7:mixinextras-fabric:0.4.1")
-    include("io.github.llamalad7:mixinextras-fabric:0.4.1")
+    if (isMinecraft26Plus) {
+        add("implementation", "io.github.llamalad7:mixinextras-fabric:0.5.4")
+    } else {
+        add("implementation", "io.github.llamalad7:mixinextras-fabric:0.4.1")
+        add("include", "io.github.llamalad7:mixinextras-fabric:0.4.1")
+    }
+
+    add("implementation", "org.xerial:sqlite-jdbc:${property("sqlite_version")}")
+    add("include", "org.xerial:sqlite-jdbc:${property("sqlite_version")}")
 }
 
 tasks.jar {
@@ -138,17 +174,18 @@ tasks.processResources {
 }
 
 tasks.processTestResources {
-    dependsOn("kspGametestKotlin")
+    tasks.findByName("kspGametestKotlin")?.let { dependsOn(it) }
 }
 
-tasks.named<Copy>("processGametestResources") {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    dependsOn("kspTestKotlin")
+tasks.findByName("processGametestResources")?.let { found ->
+    val task = found as Copy
+    task.duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    tasks.findByName("kspTestKotlin")?.let { task.dependsOn(it) }
 }
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    options.release.set(21)
+    options.release.set(if (isMinecraft26Plus) 25 else 21)
 }
 
 java {
@@ -159,14 +196,18 @@ publishMods {
     val modrinthToken = System.getenv("MODRINTH_TOKEN") ?: ""
     val curseforgeToken = System.getenv("CURSEFORGE_TOKEN") ?: ""
 
-    file = tasks.remapJar.get().archiveFile
-    dryRun = true // Disabled by default - set your own project IDs
+    file = if (isMinecraft26Plus) {
+        tasks.jar.flatMap { it.archiveFile }.map { it.asFile }
+    } else {
+        tasks.named("remapJar").map { it.outputs.files.singleFile }
+    }
+    dryRun.set(true) // Disabled by default - set your own project IDs
 
-    displayName = "${modName} ${property("display_name")} $dynamicVersion"
-    version = dynamicVersion
+    displayName.set("${modName} ${property("display_name")} $dynamicVersion")
+    version.set(dynamicVersion)
 
-    changelog = file("../../RELEASE_NOTE.md").readText()
-    type = STABLE
+    changelog.set(file("../../RELEASE_NOTE.md").readText())
+    type.set(STABLE)
     modLoaders.add("fabric")
 
     val targets = property("supported_versions").toString().split(",")

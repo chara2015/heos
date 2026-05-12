@@ -1,7 +1,7 @@
 package heos.interfaces;
 
 import heos.storage.PlayerData;
-import net.minecraft.network.ClientConnection;
+import net.minecraft.network.Connection;
 
 /**
  * Player authentication extension interface
@@ -46,7 +46,7 @@ public interface PlayerAuth {
     /**
      * Sets the player's IP address from connection
      */
-    void heos$setIpAddress(ClientConnection connection);
+    void heos$setIpAddress(Connection connection);
     
     /**
      * Sets the player's IP address directly
@@ -67,4 +67,19 @@ public interface PlayerAuth {
      * Sends authentication message to player
      */
     void heos$sendAuthMessage();
+
+    /**
+     * Called after the player has fully authenticated.
+     */
+    void heos$onAuthenticated();
+
+    /**
+     * Starts or refreshes the TPS display for this player.
+     */
+    void heos$startTpsDisplay();
+
+    /**
+     * Stops the TPS display for this player.
+     */
+    void heos$stopTpsDisplay();
 }
