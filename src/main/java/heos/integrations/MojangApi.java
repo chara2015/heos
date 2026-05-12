@@ -4,11 +4,13 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import heos.utils.HeosLogger;
 
-import javax.net.ssl.HttpsURLConnection;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.UUID;
 
 /**
@@ -16,6 +18,11 @@ import java.util.UUID;
  */
 public class MojangApi {
     private static final String MOJANG_API = "https://api.mojang.com/users/profiles/minecraft/";
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(5);
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+        .connectTimeout(REQUEST_TIMEOUT)
+        .followRedirects(HttpClient.Redirect.NEVER)
+        .build();
 
     public enum LookupResultType {
         FOUND,
@@ -37,47 +44,56 @@ public class MojangApi {
      * Gets Mojang account lookup result
      */
     public static LookupResult lookupAccount(String username) {
+        if (!isValidMojangUsername(username)) {
+            return new LookupResult(LookupResultType.NOT_FOUND, null);
+        }
+
+        HttpRequest request = HttpRequest.newBuilder(URI.create(MOJANG_API + username))
+            .timeout(REQUEST_TIMEOUT)
+            .GET()
+            .build();
+
         try {
-            HttpsURLConnection connection = (HttpsURLConnection) URI.create(MOJANG_API + username).toURL().openConnection();
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
-
-            int response = connection.getResponseCode();
-
-            if (response == HttpURLConnection.HTTP_OK) {
-                String responseBody = new String(connection.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-                connection.disconnect();
-
-                JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
-                if (!json.has("id")) {
-                    HeosLogger.warn("Mojang API response for " + username + " did not contain an id: " + responseBody);
-                    return new LookupResult(LookupResultType.ERROR, null);
-                }
-                String uuidString = json.get("id").getAsString();
-                if (uuidString == null || !uuidString.matches("^[0-9a-fA-F]{32}$")) {
-                    HeosLogger.warn("Mojang API response for " + username + " contained an invalid id: " + responseBody);
-                    return new LookupResult(LookupResultType.ERROR, null);
-                }
-                UUID uuid = UUID.fromString(uuidString.replaceFirst("(.{8})(.{4})(.{4})(.{4})(.{12})", "$1-$2-$3-$4-$5"));
-                return new LookupResult(LookupResultType.FOUND, uuid);
+            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            int status = response.statusCode();
+            if (status == HttpURLConnection.HTTP_OK) {
+                return parseProfile(username, response.body());
             }
-
-            if (response == HttpURLConnection.HTTP_NO_CONTENT || response == HttpURLConnection.HTTP_NOT_FOUND) {
-                connection.disconnect();
+            if (status == HttpURLConnection.HTTP_NO_CONTENT || status == HttpURLConnection.HTTP_NOT_FOUND) {
                 return new LookupResult(LookupResultType.NOT_FOUND, null);
             }
 
-            connection.disconnect();
-            HeosLogger.warn("Unexpected Mojang API status for " + username + ": " + response);
+            HeosLogger.warn("Unexpected Mojang API status for " + username + ": " + status);
             return new LookupResult(LookupResultType.ERROR, null);
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
             HeosLogger.error("Failed to check Mojang account for " + username, e);
             return new LookupResult(LookupResultType.ERROR, null);
         } catch (RuntimeException e) {
             HeosLogger.error("Failed to parse Mojang account response for " + username, e);
             return new LookupResult(LookupResultType.ERROR, null);
         }
+    }
+
+    private static LookupResult parseProfile(String username, String responseBody) {
+        JsonObject json = JsonParser.parseString(responseBody).getAsJsonObject();
+        String compactUuid = json.has("id") ? json.get("id").getAsString() : null;
+        if (compactUuid == null || !compactUuid.matches("^[0-9a-fA-F]{32}$")) {
+            HeosLogger.warn("Mojang API response for " + username + " contained an invalid id: " + responseBody);
+            return new LookupResult(LookupResultType.ERROR, null);
+        }
+        return new LookupResult(LookupResultType.FOUND, expandUuid(compactUuid));
+    }
+
+    private static UUID expandUuid(String compactUuid) {
+        String dashedUuid = compactUuid.substring(0, 8)
+            + "-" + compactUuid.substring(8, 12)
+            + "-" + compactUuid.substring(12, 16)
+            + "-" + compactUuid.substring(16, 20)
+            + "-" + compactUuid.substring(20);
+        return UUID.fromString(dashedUuid);
     }
 
     /**

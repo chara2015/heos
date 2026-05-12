@@ -28,6 +28,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.Locale;
+
 /**
  * Mixin to handle offline players joining online-mode server
  */
@@ -64,47 +66,21 @@ public abstract class ServerLoginNetworkHandlerMixin {
     private boolean heos$pendingPremiumVerification = false;
     @Unique
     private String heos$loginUsername = "unknown";
+    @Unique
+    private static final String[] heos$SILENCED_REASONS = {
+            Messages.offlineNameLogOnly(),
+            Messages.migrationBanLogOnly(),
+            Messages.whitelistLogOnly()
+    };
 
     @Inject(method = "handleHello(Lnet/minecraft/network/protocol/login/ServerboundHelloPacket;)V", at = @At("HEAD"), cancellable = true)
     private void checkBan(ServerboundHelloPacket packet, CallbackInfo ci) {
         String username = packet.name();
         heos$loginUsername = username;
-        BanData banData = Heos.getBanData();
-
-        String ip = getUserName();
-        if (ip.contains("/")) {
-            ip = ip.substring(ip.indexOf('/') + 1);
-        }
-        if (ip.contains(":")) {
-            ip = ip.substring(0, ip.indexOf(':'));
-        }
-
-        if (LoginFailureTracker.isBlocked(username, ip)) {
-            heos$disconnectWithoutVanillaLogs(Component.literal(LoginFailureTracker.blockMessage(username, ip)), Component.literal("Heos login failure lock"));
-            ci.cancel();
-            return;
-        }
-
-        BanData.IpBanEntry ipBan = banData.getIpBan(ip);
-        if (ipBan != null && Heos.getConfig().enableCustomBan) {
-            String message = Messages.banIpMessage(ipBan.reason, TimeParser.formatAbsoluteTime(ipBan.expiryTime));
-            ((ServerLoginPacketListenerImpl) (Object) this).disconnect(Component.literal(message));
-            ci.cancel();
-            return;
-        }
-
-        BanData.BanEntry playerBan = banData.getPlayerBan(username, null);
-        if (playerBan != null) {
-            if (!Heos.getConfig().enableCustomBan && !Messages.isMigrationReason(playerBan.reason)) {
-                return;
-            }
-            String message = Messages.banMessage(playerBan.reason, TimeParser.formatAbsoluteTime(playerBan.expiryTime));
-            if (Messages.isMigrationReason(playerBan.reason)) {
-                HeosLogger.info(Messages.migrationBanAttemptLog(username));
-                heos$disconnectWithoutVanillaLogs(Component.literal(message), Component.literal(Messages.migrationBanLogOnly()));
-            } else {
-                ((ServerLoginPacketListenerImpl) (Object) this).disconnect(Component.literal(message));
-            }
+        String remoteIp = heos$extractRemoteIp();
+        if (heos$rejectFailureLock(username, remoteIp)
+                || heos$rejectIpBan(remoteIp)
+                || heos$rejectPlayerBan(username)) {
             ci.cancel();
         }
     }
@@ -122,49 +98,16 @@ public abstract class ServerLoginNetworkHandlerMixin {
         String username = packet.name();
         HeosLogger.debug("Checking player: " + username);
 
-        if (!MojangApi.isValidMojangUsername(username)) {
-            if (!MojangApi.isAllowedOfflineUsername(username)) {
-                HeosLogger.info(Messages.invalidOfflineNameLog() + ": " + username);
-                heos$disconnectWithoutVanillaLogs(Component.literal(Messages.offlineNameHint()), Component.literal(Messages.offlineNameLogOnly()));
-                ci.cancel();
-                return;
-            }
-
-            HeosLogger.info("Offline player is using an allowed non-premium username: " + username);
-            GameProfile offlineProfile = new GameProfile(UUIDUtil.createOfflinePlayerUUID(username), username);
-            //? if >= 1.20.5 {
-            this.authenticatedProfile = offlineProfile;
-            heos$finishLoginAndWaitForClient(offlineProfile);
-            //?} else {
-            /*this.gameProfile = offlineProfile;
-            ((ServerLoginPacketListenerImpl) (Object) this).handleAcceptedLogin();
-            *///?}
+        if (heos$routeExplicitOfflineName(username)) {
             ci.cancel();
             return;
         }
 
-        PlayerData data = Heos.getPlayerData(username);
-        if (data.isOnlineAccount) {
-            HeosLogger.debug("Player " + username + " is cached as premium, continuing vanilla auth");
-            return;
-        }
-
-        MojangApi.LookupResult lookup = MojangApi.lookupAccount(username);
-
-        if (lookup.type == MojangApi.LookupResultType.NOT_FOUND) {
-            HeosLogger.info(Messages.invalidOfflineNameLog() + ": " + username);
-            heos$disconnectWithoutVanillaLogs(Component.literal(Messages.offlineNameHint()), Component.literal(Messages.offlineNameLogOnly()));
+        if (heos$shouldContinueVanillaPremiumFlow(username)) {
+            heos$pendingPremiumVerification = true;
+        } else {
             ci.cancel();
-            return;
         }
-
-        if (lookup.type == MojangApi.LookupResultType.ERROR) {
-            HeosLogger.warn("Mojang API lookup failed for " + username + ", allowing vanilla online-mode auth");
-            return;
-        }
-
-        HeosLogger.info("Player " + username + " uses a premium name, deferring to vanilla authentication");
-        heos$pendingPremiumVerification = true;
     }
 
     @Inject(method = "disconnect(Lnet/minecraft/network/chat/Component;)V", at = @At("HEAD"), cancellable = true)
@@ -177,9 +120,7 @@ public abstract class ServerLoginNetworkHandlerMixin {
                 ci.cancel();
                 return;
             }
-            if (Messages.offlineNameLogOnly().equals(text)
-                    || Messages.migrationBanLogOnly().equals(text)
-                    || Messages.whitelistLogOnly().equals(text)) {
+            if (heos$shouldSilenceReason(text)) {
                 ci.cancel();
             }
         }
@@ -190,9 +131,7 @@ public abstract class ServerLoginNetworkHandlerMixin {
     private void suppressVanillaLostConnectionLog(DisconnectionDetails info, CallbackInfo ci) {
         if (info != null && info.reason() != null) {
             String text = info.reason().getString();
-            if (Messages.offlineNameLogOnly().equals(text)
-                    || Messages.migrationBanLogOnly().equals(text)
-                    || Messages.whitelistLogOnly().equals(text)) {
+            if (heos$shouldSilenceReason(text)) {
                 ci.cancel();
             }
         }
@@ -210,7 +149,7 @@ public abstract class ServerLoginNetworkHandlerMixin {
             return;
         }
 
-        String normalized = message.toLowerCase();
+        String normalized = message.toLowerCase(Locale.ROOT);
         if (normalized.contains("invalid session")
                 || normalized.contains("failed to verify username")) {
             heos$pendingPremiumVerification = false;
@@ -226,11 +165,136 @@ public abstract class ServerLoginNetworkHandlerMixin {
     }
 
     @Unique
+    private boolean heos$rejectFailureLock(String username, String remoteIp) {
+        if (!LoginFailureTracker.isBlocked(username, remoteIp)) {
+            return false;
+        }
+        heos$disconnectWithoutVanillaLogs(
+                Component.literal(LoginFailureTracker.blockMessage(username, remoteIp)),
+                Component.literal("Heos login failure lock")
+        );
+        return true;
+    }
+
+    @Unique
+    private boolean heos$rejectIpBan(String remoteIp) {
+        if (!Heos.getConfig().enableCustomBan) {
+            return false;
+        }
+        BanData.IpBanEntry ipBan = Heos.getBanData().getIpBan(remoteIp);
+        if (ipBan == null) {
+            return false;
+        }
+        String message = Messages.banIpMessage(ipBan.reason, TimeParser.formatAbsoluteTime(ipBan.expiryTime));
+        ((ServerLoginPacketListenerImpl) (Object) this).disconnect(Component.literal(message));
+        return true;
+    }
+
+    @Unique
+    private boolean heos$rejectPlayerBan(String username) {
+        BanData.BanEntry playerBan = Heos.getBanData().getPlayerBan(username, null);
+        if (playerBan == null) {
+            return false;
+        }
+        if (!Heos.getConfig().enableCustomBan && !Messages.isMigrationReason(playerBan.reason)) {
+            return false;
+        }
+
+        String message = Messages.banMessage(playerBan.reason, TimeParser.formatAbsoluteTime(playerBan.expiryTime));
+        if (Messages.isMigrationReason(playerBan.reason)) {
+            HeosLogger.info(Messages.migrationBanAttemptLog(username));
+            heos$disconnectWithoutVanillaLogs(Component.literal(message), Component.literal(Messages.migrationBanLogOnly()));
+        } else {
+            ((ServerLoginPacketListenerImpl) (Object) this).disconnect(Component.literal(message));
+        }
+        return true;
+    }
+
+    @Unique
+    private boolean heos$routeExplicitOfflineName(String username) {
+        if (MojangApi.isValidMojangUsername(username)) {
+            return false;
+        }
+        if (!MojangApi.isAllowedOfflineUsername(username)) {
+            HeosLogger.info(Messages.invalidOfflineNameLog() + ": " + username);
+            heos$disconnectWithoutVanillaLogs(Component.literal(Messages.offlineNameHint()), Component.literal(Messages.offlineNameLogOnly()));
+            return true;
+        }
+
+        HeosLogger.info("Offline player is using an allowed non-premium username: " + username);
+        heos$acceptOfflineLogin(username);
+        return true;
+    }
+
+    @Unique
+    private boolean heos$shouldContinueVanillaPremiumFlow(String username) {
+        PlayerData data = Heos.getPlayerData(username);
+        if (data.isOnlineAccount) {
+            HeosLogger.debug("Player " + username + " is cached as premium, continuing vanilla auth");
+            return true;
+        }
+
+        MojangApi.LookupResult lookup = MojangApi.lookupAccount(username);
+        if (lookup.type == MojangApi.LookupResultType.ERROR) {
+            HeosLogger.warn("Mojang API lookup failed for " + username + ", allowing vanilla online-mode auth");
+            return true;
+        }
+
+        if (lookup.type == MojangApi.LookupResultType.NOT_FOUND) {
+            HeosLogger.info(Messages.invalidOfflineNameLog() + ": " + username);
+            heos$disconnectWithoutVanillaLogs(Component.literal(Messages.offlineNameHint()), Component.literal(Messages.offlineNameLogOnly()));
+            return false;
+        }
+
+        HeosLogger.info("Player " + username + " uses a premium name, deferring to vanilla authentication");
+        return true;
+    }
+
+    @Unique
+    private void heos$acceptOfflineLogin(String username) {
+        GameProfile offlineProfile = new GameProfile(UUIDUtil.createOfflinePlayerUUID(username), username);
+        //? if >= 1.20.5 {
+        this.authenticatedProfile = offlineProfile;
+        heos$finishLoginAndWaitForClient(offlineProfile);
+        //?} else {
+        /*this.gameProfile = offlineProfile;
+        ((ServerLoginPacketListenerImpl) (Object) this).handleAcceptedLogin();
+        *///?}
+    }
+
+    @Unique
+    private String heos$extractRemoteIp() {
+        String remote = getUserName();
+        int slashIndex = remote.indexOf('/');
+        if (slashIndex >= 0) {
+            remote = remote.substring(slashIndex + 1);
+        }
+        int colonIndex = remote.indexOf(':');
+        if (colonIndex >= 0) {
+            remote = remote.substring(0, colonIndex);
+        }
+        return remote;
+    }
+
+    @Unique
+    private boolean heos$shouldSilenceReason(String text) {
+        if (text == null) {
+            return false;
+        }
+        for (String reason : heos$SILENCED_REASONS) {
+            if (reason.equals(text)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Unique
     private boolean heos$isWhitelistDisconnect(String text) {
         if (text == null) {
             return false;
         }
-        String normalized = text.toLowerCase(java.util.Locale.ROOT);
+        String normalized = text.toLowerCase(Locale.ROOT);
         return normalized.contains("not white-listed")
                 || normalized.contains("not whitelisted")
                 || normalized.contains("whitelist");

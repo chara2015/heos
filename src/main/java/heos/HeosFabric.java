@@ -23,27 +23,33 @@ import net.minecraft.world.item.ItemStack;
 *///?}
 
 /**
- * Fabric mod initializer for Heos
+ * Fabric entrypoint for Heos.
  */
 public class HeosFabric implements ModInitializer {
+    private static final String[] STARTUP_BANNER = {
+        "Initializing Heos authentication system...",
+        "Heos authentication system initialized successfully!"
+    };
 
     @Override
     public void onInitialize() {
         Heos.gameDirectory = FabricLoader.getInstance().getGameDir();
-
-        HeosLogger.info("Initializing Heos authentication system...");
-        HeosLogger.info("Game directory: " + Heos.gameDirectory);
-
-        registerCommands();
-        registerEvents();
-
-        HeosLogger.info("Heos authentication system initialized successfully!");
+        logStartupContext();
+        installCommandCallbacks();
+        installServerCallbacks();
+        installInteractionGuards();
+        HeosLogger.info(STARTUP_BANNER[1]);
     }
 
-    private void registerCommands() {
+    private void logStartupContext() {
+        HeosLogger.info(STARTUP_BANNER[0]);
+        HeosLogger.info("Game directory: " + Heos.gameDirectory);
+    }
+
+    private void installCommandCallbacks() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            LoginCommand.registerCommand(dispatcher);
-            RegisterCommand.registerCommand(dispatcher);
+            LoginCommand.register(dispatcher);
+            RegisterCommand.register(dispatcher);
             ChangePasswordCommand.register(dispatcher);
             HeosAdminCommand.register(dispatcher);
             BanCommands.register(dispatcher);
@@ -51,22 +57,22 @@ public class HeosFabric implements ModInitializer {
         });
     }
 
-    private void registerEvents() {
+    private void installServerCallbacks() {
         ServerLifecycleEvents.SERVER_STARTED.register(Heos::onStartServer);
         ServerLifecycleEvents.SERVER_STOPPED.register(Heos::onStopServer);
+    }
 
-        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) ->
-            AuthEventHandler.onBreakBlock(player)
-        );
+    private void installInteractionGuards() {
+        PlayerBlockBreakEvents.BEFORE.register((world, player, pos, state, blockEntity) -> AuthEventHandler.onBreakBlock(player));
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> AuthEventHandler.onUseBlock(player));
+        registerUseItemGuard();
+        AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> AuthEventHandler.onAttackEntity(player));
+        UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> AuthEventHandler.onUseEntity(player));
+    }
 
-        UseBlockCallback.EVENT.register((player, world, hand, hitResult) ->
-            AuthEventHandler.onUseBlock(player)
-        );
-
+    private void registerUseItemGuard() {
         //? if >= 1.21 {
-        UseItemCallback.EVENT.register((player, world, hand) ->
-            AuthEventHandler.onUseItem(player)
-        );
+        UseItemCallback.EVENT.register((player, world, hand) -> AuthEventHandler.onUseItem(player));
         //?} else {
         /*UseItemCallback.EVENT.register((player, world, hand) -> {
             InteractionResult result = AuthEventHandler.onUseItem(player);
@@ -79,13 +85,5 @@ public class HeosFabric implements ModInitializer {
             return InteractionResultHolder.pass(ItemStack.EMPTY);
         });
         *///?}
-
-        AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) ->
-            AuthEventHandler.onAttackEntity(player)
-        );
-
-        UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) ->
-            AuthEventHandler.onUseEntity(player)
-        );
     }
 }

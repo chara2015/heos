@@ -3,10 +3,12 @@
   "package": "heos.mixin",
   "compatibilityLevel": "JAVA_17",
   "mixins": [
-    "EntityMixin",
+    "EntityAuthStateMixin",
+    "PlayerDamageGateMixin",
     "ServerLoginNetworkHandlerMixin",
     "ServerPlayerEntityMixin",
     "PlayerManagerMixin",
+    "UserWhiteListMixin",
     "ServerPlayNetworkHandlerMixin",
     "MinecraftServerMixin"
   ],

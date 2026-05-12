@@ -2,9 +2,9 @@ package heos.commands;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.brigadier.tree.LiteralCommandNode;
 import heos.integrations.Permissions;
 import heos.interfaces.PlayerAuth;
 import heos.storage.PlayerData;
@@ -18,98 +18,123 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Login command for offline players
+ * Handles `/login`.
  */
 public class LoginCommand {
-
     public static void registerCommand(CommandDispatcher<CommandSourceStack> dispatcher) {
-        LiteralCommandNode<CommandSourceStack> loginNode = registerLogin(dispatcher);
+        register(dispatcher);
+    }
 
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(primaryNode());
         dispatcher.register(
             Commands.literal("l")
                 .requires(Permissions.require("heos.commands.login", true))
-                .redirect(loginNode)
+                .redirect(dispatcher.getRoot().getChild("login"))
         );
     }
 
-    public static LiteralCommandNode<CommandSourceStack> registerLogin(CommandDispatcher<CommandSourceStack> dispatcher) {
-        return dispatcher.register(
-            Commands.literal("login")
-                .requires(Permissions.require("heos.commands.login", true))
-                .then(Commands.argument("password", StringArgumentType.string())
-                    .executes(LoginCommand::execute)
-                )
-                .executes(ctx -> {
-                    ctx.getSource().sendSystemMessage(Component.literal(Messages.loginInputHint()));
-                    return 0;
-                })
+    private static LiteralArgumentBuilder<CommandSourceStack> primaryNode() {
+        return Commands.literal("login")
+            .requires(Permissions.require("heos.commands.login", true))
+            .then(Commands.argument("password", StringArgumentType.string())
+                .executes(LoginCommand::run))
+            .executes(context -> sendHint(context.getSource()));
+    }
+
+    private static int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+        return authenticate(
+            context.getSource().getPlayerOrException(),
+            StringArgumentType.getString(context, "password")
         );
     }
 
-    private static int execute(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        CommandSourceStack source = context.getSource();
-        ServerPlayer player = source.getPlayerOrException();
-        String password = StringArgumentType.getString(context, "password");
-        return execute(player, password);
+    public static int authenticate(ServerPlayer player, String password) {
+        PlayerAuth auth = (PlayerAuth) player;
+        String username = player.getName().getString();
+        String ipAddress = auth.heos$getIpAddress();
+        HeosLogger.info("Player " + username + " is trying to login");
+
+        if (LoginFailureTracker.isBlocked(username, ipAddress)) {
+            return disconnect(player, LoginFailureTracker.blockMessage(username, ipAddress));
+        }
+
+        int gate = rejectUnavailableAttempt(player, auth, username);
+        if (gate >= 0) {
+            return gate;
+        }
+
+        PlayerData data = auth.heos$getPlayerData();
+        if (!data.isRegistered()) {
+            HeosLogger.info("Player " + username + " is not registered");
+            return reply(player, Messages.notRegistered());
+        }
+
+        if (!PasswordHasher.verifyPassword(password, data.passwordHash)) {
+            HeosLogger.warn("Player " + username + " provided wrong password");
+            if (LoginFailureTracker.recordFailure(username, ipAddress)) {
+                return disconnect(player, LoginFailureTracker.blockMessage(username, ipAddress));
+            }
+            return reply(player, Messages.wrongPassword());
+        }
+
+        return completeLogin(player, auth, data, password, username, ipAddress);
     }
 
     public static int execute(ServerPlayer player, String password) {
-        PlayerAuth playerAuth = (PlayerAuth) player;
+        return authenticate(player, password);
+    }
 
-        String username = player.getName().getString();
-        String ip = playerAuth.heos$getIpAddress();
-        HeosLogger.info("Player " + username + " is trying to login");
-
-        if (LoginFailureTracker.isBlocked(username, ip)) {
-            player.connection.disconnect(Component.literal(LoginFailureTracker.blockMessage(username, ip)));
-            return 0;
-        }
-
-        if (playerAuth.heos$isAuthenticated()) {
+    private static int rejectUnavailableAttempt(ServerPlayer player, PlayerAuth auth, String username) {
+        if (auth.heos$isAuthenticated()) {
             HeosLogger.info("Player " + username + " is already authenticated");
-            player.sendSystemMessage(Component.literal(Messages.alreadyLoggedIn()), false);
-            return 0;
+            return reply(player, Messages.alreadyLoggedIn());
         }
-
-        if (playerAuth.heos$canSkipAuth()) {
+        if (auth.heos$canSkipAuth()) {
             HeosLogger.info("Player " + username + " is premium, no need to login");
-            player.sendSystemMessage(Component.literal(Messages.premiumNoLogin()), false);
-            return 0;
+            return reply(player, Messages.premiumNoLogin());
         }
+        return -1;
+    }
 
-        PlayerData data = playerAuth.heos$getPlayerData();
+    private static int completeLogin(ServerPlayer player, PlayerAuth auth, PlayerData data, String password, String username, String ipAddress) {
+        HeosLogger.info("Player " + username + " provided correct password");
+        LoginFailureTracker.reset(username, ipAddress);
+        auth.heos$setAuthenticated(true);
+        maybeUpgradeHash(data, password);
+        data.lastIp = auth.heos$getIpAddress();
+        data.lastLoginTime = System.currentTimeMillis();
+        data.save();
+        HeosLogger.info("Player " + username + " logged in successfully");
+        return reply(player, Messages.loginSuccess(), 1);
+    }
 
-        if (!data.isRegistered()) {
-            HeosLogger.info("Player " + username + " is not registered");
-            player.sendSystemMessage(Component.literal(Messages.notRegistered()), false);
-            return 0;
+    private static void maybeUpgradeHash(PlayerData data, String password) {
+        if (!PasswordHasher.needsRehash(data.passwordHash)) {
+            return;
         }
-
-        if (PasswordHasher.verifyPassword(password, data.passwordHash)) {
-            HeosLogger.info("Player " + username + " provided correct password");
-            LoginFailureTracker.reset(username, ip);
-            playerAuth.heos$setAuthenticated(true);
-            if (PasswordHasher.needsRehash(data.passwordHash)) {
-                String upgradedHash = PasswordHasher.hashPassword(password);
-                if (upgradedHash != null) {
-                    data.passwordHash = upgradedHash;
-                }
-            }
-            data.lastIp = playerAuth.heos$getIpAddress();
-            data.lastLoginTime = System.currentTimeMillis();
-            data.save();
-
-            player.sendSystemMessage(Component.literal(Messages.loginSuccess()), false);
-            HeosLogger.info("Player " + username + " logged in successfully");
-            return 1;
-        } else {
-            HeosLogger.warn("Player " + username + " provided wrong password");
-            if (LoginFailureTracker.recordFailure(username, ip)) {
-                player.connection.disconnect(Component.literal(LoginFailureTracker.blockMessage(username, ip)));
-            } else {
-                player.sendSystemMessage(Component.literal(Messages.wrongPassword()), false);
-            }
-            return 0;
+        String upgradedHash = PasswordHasher.hashPassword(password);
+        if (upgradedHash != null) {
+            data.passwordHash = upgradedHash;
         }
+    }
+
+    private static int sendHint(CommandSourceStack source) {
+        source.sendSystemMessage(Component.literal(Messages.loginInputHint()));
+        return 0;
+    }
+
+    private static int reply(ServerPlayer player, String message) {
+        return reply(player, message, 0);
+    }
+
+    private static int reply(ServerPlayer player, String message, int result) {
+        player.sendSystemMessage(Component.literal(message), false);
+        return result;
+    }
+
+    private static int disconnect(ServerPlayer player, String message) {
+        player.connection.disconnect(Component.literal(message));
+        return 0;
     }
 }

@@ -23,7 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * Implements PlayerAuth interface for ServerPlayerEntity
  */
 @Mixin(ServerPlayer.class)
-public abstract class ServerPlayerEntityMixin extends EntityMixin implements PlayerAuth {
+public abstract class ServerPlayerEntityMixin implements PlayerAuth {
 
     @Unique
     private boolean heos$authenticated = false;
@@ -158,16 +158,6 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
         TpsDisplayService.stop((ServerPlayer) (Object) this);
     }
 
-    @Override
-    public boolean heos$isInvisible(boolean original) {
-        return original || !heos$authenticated;
-    }
-
-    @Override
-    public boolean heos$isInvulnerable(boolean original) {
-        return original || !heos$authenticated;
-    }
-
     @Unique
     private ServerLevel heos$getServerWorld(ServerPlayer player) {
         //? if >= 1.21.6 {
@@ -223,4 +213,3 @@ public abstract class ServerPlayerEntityMixin extends EntityMixin implements Pla
         newAuth.heos$setIpAddress(oldAuth.heos$getIpAddress());
     }
 }
-

@@ -1,5 +1,7 @@
 package heos.mixin;
 
+import com.mojang.authlib.GameProfile;
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import heos.Heos;
 import heos.interfaces.PlayerAuth;
 import heos.storage.PlayerData;
@@ -9,6 +11,9 @@ import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+//? if >= 1.21.11 {
+import net.minecraft.server.players.NameAndId;
+//?}
 //? if >= 1.20.5 {
 import net.minecraft.server.network.CommonListenerCookie;
 //?}
@@ -17,6 +22,10 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+import java.net.SocketAddress;
+import java.util.Locale;
 
 /**
  * Handles player join and leave events
@@ -37,58 +46,32 @@ public abstract class PlayerManagerMixin {
     *///?}
 
     private void heos$handlePlayerJoin(Connection connection, ServerPlayer player) {
-        PlayerAuth playerAuth = (PlayerAuth) player;
+        PlayerAuth authState = (PlayerAuth) player;
         String username = player.getName().getString();
+        PlayerData storedData = Heos.getPlayerData(username);
 
-        PlayerData data = Heos.getPlayerData(username);
-        playerAuth.heos$setPlayerData(data);
-        playerAuth.heos$setIpAddress(connection);
+        heos$prepareSession(authState, connection, storedData);
         if (heos$exceedsIpSessionLimit(player)) {
             player.connection.disconnect(Component.literal(Heos.getConfig().sessionLimitKickMessage));
             return;
         }
 
-        boolean fakePlayer = player.getClass() != ServerPlayer.class;
-        if (fakePlayer) {
-            playerAuth.heos$setCanSkipAuth(true);
-            playerAuth.heos$setUsingMojangAccount(false);
-            playerAuth.heos$setAuthenticated(true);
-            HeosLogger.info("Fake/mod player " + username + " joined, authentication skipped");
+        if (heos$isSyntheticPlayer(player)) {
+            heos$acceptSyntheticPlayer(authState, username);
             return;
         }
 
         if (!Heos.getConfig().enableAuthentication) {
-            playerAuth.heos$setCanSkipAuth(true);
-            playerAuth.heos$setUsingMojangAccount(false);
-            playerAuth.heos$setAuthenticated(true);
-            HeosLogger.info("Authentication disabled, player " + username + " joined without auth");
+            heos$acceptWithoutPassword(authState, username);
             return;
         }
 
-        boolean currentSessionUsesMojangAccount = player.level().getServer().usesAuthentication()
-                && !player.getUUID().equals(UUIDUtil.createOfflinePlayerUUID(username));
-        if (currentSessionUsesMojangAccount) {
-            data.isOnlineAccount = true;
-            data.uuid = player.getUUID();
-            data.save();
-            playerAuth.heos$setCanSkipAuth(true);
-            playerAuth.heos$setUsingMojangAccount(true);
-            playerAuth.heos$setAuthenticated(true);
-
-            HeosLogger.info("Premium player " + username + " joined, authentication skipped");
-            player.sendSystemMessage(Component.literal(Messages.premiumWelcome()), false);
-        } else {
-            if (data.isOnlineAccount || data.uuid == null || !data.uuid.equals(player.getUUID())) {
-                data.isOnlineAccount = false;
-                data.uuid = player.getUUID();
-                data.save();
-            }
-            playerAuth.heos$setCanSkipAuth(false);
-            playerAuth.heos$setUsingMojangAccount(false);
-            playerAuth.heos$setAuthenticated(false);
-            HeosLogger.info("Offline player " + username + " joined, authentication required");
-            player.level().getServer().execute(playerAuth::heos$sendAuthMessage);
+        if (heos$isVerifiedOnlineSession(player, username)) {
+            heos$acceptPremiumPlayer(player, authState, storedData, username);
+            return;
         }
+
+        heos$requirePasswordLogin(player, authState, storedData, username);
     }
 
     @Inject(method = "remove", at = @At("HEAD"))
@@ -97,6 +80,34 @@ public abstract class PlayerManagerMixin {
         ((PlayerAuth) player).heos$stopTpsDisplay();
         HeosLogger.debug("Player " + username + " left the server");
     }
+
+    //? if >= 1.21.11 {
+    @Inject(method = "canPlayerLogin", at = @At("TAIL"), cancellable = true)
+    private void heos$checkWhitelist(SocketAddress address, NameAndId profile, CallbackInfoReturnable<Component> cir) {
+        if (profile != null) {
+            heos$applyWhitelistDecision(profile.name(), cir);
+        }
+    }
+    //?} else {
+    /*@Inject(method = "canPlayerLogin", at = @At("TAIL"), cancellable = true)
+    private void heos$checkWhitelist(SocketAddress address, GameProfile profile, CallbackInfoReturnable<Component> cir) {
+        if (profile != null) {
+            heos$applyWhitelistDecision(profile.getName(), cir);
+        }
+    }
+    *///?}
+
+    //? if >= 1.21.11 {
+    @ModifyReturnValue(method = "isWhiteListed", at = @At("RETURN"))
+    private boolean heos$allowHeosWhitelistedPlayers(boolean original, NameAndId profile) {
+        return original || (profile != null && Heos.getWhitelistData().isWhitelisted(profile.name()));
+    }
+    //?} else {
+    /*@ModifyReturnValue(method = "isWhiteListed", at = @At("RETURN"))
+    private boolean heos$allowHeosWhitelistedPlayers(boolean original, GameProfile profile) {
+        return original || (profile != null && Heos.getWhitelistData().isWhitelisted(profile.getName()));
+    }
+    *///?}
 
     private boolean heos$exceedsIpSessionLimit(ServerPlayer player) {
         int maxSessions = Heos.getConfig().maxConcurrentSessionsPerIp;
@@ -114,5 +125,87 @@ public abstract class PlayerManagerMixin {
             }
         }
         return sessions > maxSessions;
+    }
+
+    private void heos$prepareSession(PlayerAuth authState, Connection connection, PlayerData storedData) {
+        authState.heos$setPlayerData(storedData);
+        authState.heos$setIpAddress(connection);
+    }
+
+    private boolean heos$isSyntheticPlayer(ServerPlayer player) {
+        return player.getClass() != ServerPlayer.class;
+    }
+
+    private void heos$acceptSyntheticPlayer(PlayerAuth authState, String username) {
+        heos$markAuthenticationState(authState, true, false, true);
+        HeosLogger.info("Fake/mod player " + username + " joined, authentication skipped");
+    }
+
+    private void heos$acceptWithoutPassword(PlayerAuth authState, String username) {
+        heos$markAuthenticationState(authState, true, false, true);
+        HeosLogger.info("Authentication disabled, player " + username + " joined without auth");
+    }
+
+    private boolean heos$isVerifiedOnlineSession(ServerPlayer player, String username) {
+        return player.level().getServer().usesAuthentication()
+                && !player.getUUID().equals(UUIDUtil.createOfflinePlayerUUID(username));
+    }
+
+    private void heos$acceptPremiumPlayer(ServerPlayer player, PlayerAuth authState, PlayerData storedData, String username) {
+        heos$syncIdentity(storedData, true, player.getUUID());
+        heos$markAuthenticationState(authState, true, true, true);
+        HeosLogger.info("Premium player " + username + " joined, authentication skipped");
+        player.sendSystemMessage(Component.literal(Messages.premiumWelcome()), false);
+    }
+
+    private void heos$requirePasswordLogin(ServerPlayer player, PlayerAuth authState, PlayerData storedData, String username) {
+        heos$syncIdentity(storedData, false, player.getUUID());
+        heos$markAuthenticationState(authState, false, false, false);
+        HeosLogger.info("Offline player " + username + " joined, authentication required");
+        player.level().getServer().execute(authState::heos$sendAuthMessage);
+    }
+
+    private void heos$syncIdentity(PlayerData storedData, boolean onlineAccount, java.util.UUID currentUuid) {
+        if (storedData.isOnlineAccount == onlineAccount && currentUuid.equals(storedData.uuid)) {
+            return;
+        }
+        storedData.isOnlineAccount = onlineAccount;
+        storedData.uuid = currentUuid;
+        storedData.save();
+    }
+
+    private void heos$markAuthenticationState(PlayerAuth authState, boolean canSkipAuth, boolean usingMojangAccount, boolean authenticated) {
+        authState.heos$setCanSkipAuth(canSkipAuth);
+        authState.heos$setUsingMojangAccount(usingMojangAccount);
+        authState.heos$setAuthenticated(authenticated);
+    }
+
+    private void heos$applyWhitelistDecision(String username, CallbackInfoReturnable<Component> cir) {
+        if (username == null || username.isBlank()) {
+            return;
+        }
+
+        boolean heosWhitelisted = Heos.getWhitelistData().isWhitelisted(username);
+        Component currentDecision = cir.getReturnValue();
+        if (heosWhitelisted && heos$isVanillaWhitelistDenial(currentDecision)) {
+            cir.setReturnValue(null);
+            HeosLogger.debug("Allowed " + username + " through vanilla whitelist by Heos whitelist");
+            return;
+        }
+
+        if (Heos.getConfig().enableWhitelist && !heosWhitelisted && currentDecision == null) {
+            cir.setReturnValue(Component.literal(Messages.whitelistKick()));
+            HeosLogger.info(Messages.whitelistDeniedLog(username));
+        }
+    }
+
+    private boolean heos$isVanillaWhitelistDenial(Component decision) {
+        if (decision == null) {
+            return false;
+        }
+        String normalized = decision.getString().toLowerCase(Locale.ROOT);
+        return normalized.contains("not white-listed")
+                || normalized.contains("not whitelisted")
+                || normalized.contains("whitelist");
     }
 }
