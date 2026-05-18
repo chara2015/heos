@@ -96,6 +96,11 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
 
     @Override
     public void heos$setIpAddress(Connection connection) {
+        if (connection == null || connection.getRemoteAddress() == null) {
+            this.heos$ipAddress = "";
+            return;
+        }
+
         String address = connection.getRemoteAddress().toString();
         if (address.contains("/")) {
             address = address.substring(address.indexOf('/') + 1);

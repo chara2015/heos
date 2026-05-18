@@ -27,6 +27,7 @@ public class BanCommands {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         if (!Heos.getConfig().enableCustomBan) {
+            dispatcher.register(customUnbanCommand());
             HeosLogger.info("Custom ban disabled, keeping vanilla ban commands");
             return;
         }
@@ -49,13 +50,13 @@ public class BanCommands {
                 .requires(Permissions.requireLevel(3))
                 .then(Commands.argument("player", StringArgumentType.string())
                         .executes(ctx -> banPlayer(ctx, null, DEFAULT_BAN_REASON))
-                        .then(Commands.argument("time", StringArgumentType.string())
-                                .executes(ctx -> banPlayer(ctx,
-                                        StringArgumentType.getString(ctx, "time"),
-                                        DEFAULT_BAN_REASON))
+                        .then(Commands.argument("durationOrReason", StringArgumentType.string())
+                                .executes(ctx -> banPlayerFlexible(ctx,
+                                        StringArgumentType.getString(ctx, "durationOrReason"),
+                                        null))
                                 .then(Commands.argument("reason", StringArgumentType.greedyString())
-                                        .executes(ctx -> banPlayer(ctx,
-                                                StringArgumentType.getString(ctx, "time"),
+                                        .executes(ctx -> banPlayerFlexible(ctx,
+                                                StringArgumentType.getString(ctx, "durationOrReason"),
                                                 StringArgumentType.getString(ctx, "reason")))
                                 )
                         )
@@ -65,7 +66,7 @@ public class BanCommands {
     private static LiteralArgumentBuilder<CommandSourceStack> customUnbanCommand() {
         return Commands.literal("unban")
                 .requires(Permissions.requireLevel(3))
-                .then(Commands.argument("player", StringArgumentType.string())
+                .then(Commands.argument("target", StringArgumentType.string())
                         .executes(BanCommands::unbanPlayer)
                 );
     }
@@ -75,17 +76,22 @@ public class BanCommands {
                 .requires(Permissions.requireLevel(3))
                 .then(Commands.argument("ip", StringArgumentType.string())
                         .executes(ctx -> banIp(ctx, null, DEFAULT_BAN_REASON))
-                        .then(Commands.argument("time", StringArgumentType.string())
-                                .executes(ctx -> banIp(ctx,
-                                        StringArgumentType.getString(ctx, "time"),
-                                        DEFAULT_BAN_REASON))
+                        .then(Commands.argument("durationOrReason", StringArgumentType.string())
+                                .executes(ctx -> banIpFlexible(ctx,
+                                        StringArgumentType.getString(ctx, "durationOrReason"),
+                                        null))
                                 .then(Commands.argument("reason", StringArgumentType.greedyString())
-                                        .executes(ctx -> banIp(ctx,
-                                                StringArgumentType.getString(ctx, "time"),
+                                        .executes(ctx -> banIpFlexible(ctx,
+                                                StringArgumentType.getString(ctx, "durationOrReason"),
                                                 StringArgumentType.getString(ctx, "reason")))
                                 )
                         )
                 );
+    }
+
+    private static int banPlayerFlexible(CommandContext<CommandSourceStack> context, String durationOrReason, String reasonTail) {
+        ParsedBanArgs args = parseBanArgs(durationOrReason, reasonTail);
+        return banPlayer(context, args.timeStr, args.reason);
     }
 
     private static int banPlayer(CommandContext<CommandSourceStack> context, String timeStr, String reason) {
@@ -128,6 +134,11 @@ public class BanCommands {
         return 1;
     }
 
+    private static int banIpFlexible(CommandContext<CommandSourceStack> context, String durationOrReason, String reasonTail) {
+        ParsedBanArgs args = parseBanArgs(durationOrReason, reasonTail);
+        return banIp(context, args.timeStr, args.reason);
+    }
+
     private static int banIp(CommandContext<CommandSourceStack> context, String timeStr, String reason) {
         CommandSourceStack source = context.getSource();
         String targetIp = StringArgumentType.getString(context, "ip");
@@ -161,20 +172,33 @@ public class BanCommands {
         return 1;
     }
 
+    private static ParsedBanArgs parseBanArgs(String durationOrReason, String reasonTail) {
+        if (durationOrReason == null) {
+            return new ParsedBanArgs(null, DEFAULT_BAN_REASON);
+        }
+
+        if (TimeParser.parseTime(durationOrReason) != -2) {
+            return new ParsedBanArgs(durationOrReason, reasonTail == null ? DEFAULT_BAN_REASON : reasonTail);
+        }
+
+        String reason = reasonTail == null ? durationOrReason : durationOrReason + " " + reasonTail;
+        return new ParsedBanArgs(null, reason);
+    }
+
     private static int unbanPlayer(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
-        String targetUsername = StringArgumentType.getString(context, "player");
+        String target = StringArgumentType.getString(context, "target");
 
         BanData banData = Heos.getBanData();
-        boolean removedPlayer = banData.removePlayerBan(targetUsername);
-        boolean removedIp = banData.removeIpBan(targetUsername);
+        boolean removedPlayer = banData.removePlayerBan(target);
+        boolean removedIp = banData.removeIpBan(target);
         if (removedPlayer || removedIp) {
-            source.sendSuccess(() -> Component.literal("Unbanned " + targetUsername), true);
-            HeosLogger.info(source.getTextName() + " unbanned " + targetUsername);
+            source.sendSuccess(() -> Component.literal("Unbanned " + target), true);
+            HeosLogger.info(source.getTextName() + " unbanned " + target);
             return 1;
         }
 
-        source.sendFailure(Component.literal(targetUsername + " is not banned"));
+        source.sendFailure(Component.literal(target + " is not banned"));
         return 0;
     }
 
@@ -237,5 +261,8 @@ public class BanCommands {
         field.setAccessible(true);
         Map<String, CommandNode<CommandSourceStack>> map = (Map<String, CommandNode<CommandSourceStack>>) field.get(node);
         map.remove(command.toLowerCase(Locale.ROOT));
+    }
+
+    private record ParsedBanArgs(String timeStr, String reason) {
     }
 }

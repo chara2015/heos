@@ -48,16 +48,16 @@ public abstract class PlayerManagerMixin {
     private void heos$handlePlayerJoin(Connection connection, ServerPlayer player) {
         PlayerAuth authState = (PlayerAuth) player;
         String username = player.getName().getString();
-        PlayerData storedData = Heos.getPlayerData(username);
-
-        heos$prepareSession(authState, connection, storedData);
-        if (heos$exceedsIpSessionLimit(player)) {
-            player.connection.disconnect(Component.literal(Heos.getConfig().sessionLimitKickMessage));
-            return;
-        }
 
         if (heos$isSyntheticPlayer(player)) {
             heos$acceptSyntheticPlayer(authState, username);
+            return;
+        }
+
+        PlayerData storedData = Heos.getPlayerData(username);
+        heos$prepareSession(authState, connection, storedData);
+        if (heos$exceedsIpSessionLimit(player)) {
+            player.connection.disconnect(Component.literal(Heos.getConfig().sessionLimitKickMessage));
             return;
         }
 
