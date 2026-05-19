@@ -20,11 +20,10 @@ public class ChangePasswordCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
             Commands.literal("changepassword")
+                .requires(ChangePasswordCommand::canUse)
                 .then(Commands.argument("oldPassword", StringArgumentType.string())
                     .then(Commands.argument("newPassword", StringArgumentType.string())
-                        .then(Commands.argument("confirmPassword", StringArgumentType.string())
-                            .executes(ChangePasswordCommand::execute)
-                        )
+                        .executes(ChangePasswordCommand::execute)
                     )
                 )
         );
@@ -32,14 +31,23 @@ public class ChangePasswordCommand {
         // Alias
         dispatcher.register(
             Commands.literal("changepw")
+                .requires(ChangePasswordCommand::canUse)
                 .then(Commands.argument("oldPassword", StringArgumentType.string())
                     .then(Commands.argument("newPassword", StringArgumentType.string())
-                        .then(Commands.argument("confirmPassword", StringArgumentType.string())
-                            .executes(ChangePasswordCommand::execute)
-                        )
+                        .executes(ChangePasswordCommand::execute)
                     )
                 )
         );
+    }
+
+    private static boolean canUse(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayer();
+            PlayerAuth auth = (PlayerAuth) player;
+            return auth.heos$isAuthenticated() && !auth.heos$canSkipAuth();
+        } catch (Exception ignored) {
+            return false;
+        }
     }
     
     private static int execute(CommandContext<CommandSourceStack> context) {
@@ -53,12 +61,16 @@ public class ChangePasswordCommand {
         ServerPlayer player = source.getPlayer();
         String oldPassword = StringArgumentType.getString(context, "oldPassword");
         String newPassword = StringArgumentType.getString(context, "newPassword");
-        String confirmPassword = StringArgumentType.getString(context, "confirmPassword");
-        return execute(player, oldPassword, newPassword, confirmPassword);
+        return execute(player, oldPassword, newPassword);
     }
 
-    public static int execute(ServerPlayer player, String oldPassword, String newPassword, String confirmPassword) {
+    public static int execute(ServerPlayer player, String oldPassword, String newPassword) {
         PlayerAuth playerAuth = (PlayerAuth) player;
+
+        if (!playerAuth.heos$isAuthenticated()) {
+            player.sendSystemMessage(Component.literal("Please log in before changing your password"), false);
+            return 0;
+        }
         
         // Check if player can skip auth (premium player)
         if (playerAuth.heos$canSkipAuth()) {
@@ -91,13 +103,7 @@ public class ChangePasswordCommand {
             player.sendSystemMessage(Component.literal("New password is too long. Maximum length is " + heos.Heos.getConfig().maxPasswordLength + " characters"), false);
             return 0;
         }
-        
-        // Check if new passwords match
-        if (!newPassword.equals(confirmPassword)) {
-            player.sendSystemMessage(Component.literal("New passwords do not match"), false);
-            return 0;
-        }
-        
+
         // Check if new password is same as old
         if (oldPassword.equals(newPassword)) {
             player.sendSystemMessage(Component.literal("New password cannot be the same as the old password"), false);

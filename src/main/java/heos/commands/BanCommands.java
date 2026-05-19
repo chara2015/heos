@@ -28,6 +28,7 @@ public class BanCommands {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         if (!Heos.getConfig().enableCustomBan) {
             dispatcher.register(customUnbanCommand());
+            dispatcher.register(customUnbanIpCommand());
             HeosLogger.info("Custom ban disabled, keeping vanilla ban commands");
             return;
         }
@@ -37,6 +38,7 @@ public class BanCommands {
         dispatcher.register(customBanCommand());
         dispatcher.register(customBanIpCommand());
         dispatcher.register(customUnbanCommand());
+        dispatcher.register(customUnbanIpCommand());
         dispatcher.register(
             Commands.literal("banlist")
                 .requires(Permissions.requireLevel(3))
@@ -68,6 +70,14 @@ public class BanCommands {
                 .requires(Permissions.requireLevel(3))
                 .then(Commands.argument("target", StringArgumentType.string())
                         .executes(BanCommands::unbanPlayer)
+                );
+    }
+
+    private static LiteralArgumentBuilder<CommandSourceStack> customUnbanIpCommand() {
+        return Commands.literal("unban-ip")
+                .requires(Permissions.requireLevel(3))
+                .then(Commands.argument("ip", StringArgumentType.string())
+                        .executes(BanCommands::unbanIp)
                 );
     }
 
@@ -199,6 +209,21 @@ public class BanCommands {
         }
 
         source.sendFailure(Component.literal(target + " is not banned"));
+        return 0;
+    }
+
+    private static int unbanIp(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        String targetIp = StringArgumentType.getString(context, "ip");
+
+        BanData banData = Heos.getBanData();
+        if (banData.removeIpBan(targetIp)) {
+            source.sendSuccess(() -> Component.literal("Unbanned IP " + targetIp), true);
+            HeosLogger.info(source.getTextName() + " unbanned IP " + targetIp);
+            return 1;
+        }
+
+        source.sendFailure(Component.literal(targetIp + " is not IP banned"));
         return 0;
     }
 

@@ -1,6 +1,7 @@
 package heos.commands;
 
 import heos.integrations.Permissions;
+import heos.interfaces.PlayerAuth;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
@@ -39,11 +40,14 @@ public final class SensitiveCommandHandler {
         }
 
         if ("changepassword".equals(root) || "changepw".equals(root)) {
-            if (parts.size() != 4) {
-                player.sendSystemMessage(Component.literal("Usage: /changepassword <oldPassword> <newPassword> <confirmPassword>"), false);
+            if (!((PlayerAuth) player).heos$isAuthenticated()) {
+                return InteractionResult.PASS;
+            }
+            if (parts.size() != 3) {
+                player.sendSystemMessage(Component.literal("Usage: /changepassword <oldPassword> <newPassword>"), false);
                 return InteractionResult.FAIL;
             }
-            ChangePasswordCommand.execute(player, parts.get(1), parts.get(2), parts.get(3));
+            ChangePasswordCommand.execute(player, parts.get(1), parts.get(2));
             return InteractionResult.FAIL;
         }
 

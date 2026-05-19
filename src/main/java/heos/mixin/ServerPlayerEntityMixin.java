@@ -56,6 +56,7 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
             HeosLogger.debug("Player authenticated: " + player.getName().getString());
             heos$kickTimer = Heos.getConfig().loginTimeout * 20L;
             heos$onAuthenticated();
+            player.level().getServer().getCommands().sendCommands(player);
 
             ServerLevel world = heos$getServerWorld(player);
             BlockPos pos = player.blockPosition();

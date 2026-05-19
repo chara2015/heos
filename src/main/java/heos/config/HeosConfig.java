@@ -2,6 +2,8 @@ package heos.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.annotations.SerializedName;
 import heos.Heos;
 import heos.storage.StoragePaths;
@@ -18,18 +20,32 @@ import java.io.IOException;
 public class HeosConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final String CONFIG_FILE = "heos_config.json";
+    private static final String[] OBSOLETE_FIELDS = {
+            "whitelistKickMessage",
+            "enableDebugLogging",
+            "logPlayerLogin",
+            "logPlayerRegister",
+            "logPasswordChange",
+            "logAdminActions",
+            "banMessageFormat",
+            "banIpMessageFormat",
+            "passwordPolicy",
+            "whitelistNotify",
+            "sessionReuseCheck",
+            "strictNameCheck"
+    };
 
     // Authentication settings
     public boolean enableAuthentication = true;
     public String language = "zh_cn";
     public int loginTimeout = 60; // seconds
+    public boolean enablePlayerDataMigration = false;
     public int migrationBanSeconds = 30; // seconds
     public int minPasswordLength = 4;
     public int maxPasswordLength = 32;
 
     // Whitelist settings
     public boolean enableWhitelist = false;
-    public String whitelistKickMessage = "Server whitelist is enabled\nPlease register an account before joining";
 
     // Session limit settings
     public int maxConcurrentSessionsPerIp = -1; // -1 to disable
@@ -44,11 +60,6 @@ public class HeosConfig {
     public int ipLoginFailureLockSeconds = 30;
 
     // Logging settings
-    public boolean enableDebugLogging = true;
-    public boolean logPlayerLogin = true;
-    public boolean logPlayerRegister = true;
-    public boolean logPasswordChange = true;
-    public boolean logAdminActions = true;
     public boolean enableAutoLogTps = true;
     public int autoLogTpsDelayTicks = 20;
     @SerializedName("\u65e5\u5fd7\u8fc7\u6ee4")
@@ -56,8 +67,6 @@ public class HeosConfig {
 
     // Ban settings
     public boolean enableCustomBan = false;
-    public String banMessageFormat = "You have been banned\nReason: %reason%\nExpires: %expiry%";
-    public String banIpMessageFormat = "Your IP has been banned\nReason: %reason%\nExpires: %expiry%";
 
     public static HeosConfig load() {
         File configFile = StoragePaths.file(CONFIG_FILE);
@@ -71,12 +80,16 @@ public class HeosConfig {
         }
 
         try (FileReader reader = new FileReader(configFile)) {
-            HeosConfig config = GSON.fromJson(reader, HeosConfig.class);
+            JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
+            HeosConfig config = GSON.fromJson(json, HeosConfig.class);
             if (config == null) {
                 HeosLogger.warn("Failed to parse config, using default");
                 HeosConfig defaultConfig = new HeosConfig();
                 defaultConfig.save();
                 return defaultConfig;
+            }
+            if (hasObsoleteFields(json)) {
+                config.save();
             }
             HeosLogger.info("Loaded config from " + configFile.getPath());
             return config;
@@ -117,5 +130,14 @@ public class HeosConfig {
         } catch (IOException e) {
             HeosLogger.error("Failed to save config", e);
         }
+    }
+
+    private static boolean hasObsoleteFields(JsonObject json) {
+        for (String field : OBSOLETE_FIELDS) {
+            if (json.has(field)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

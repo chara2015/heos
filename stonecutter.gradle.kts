@@ -15,12 +15,13 @@ val collectReleaseJars by tasks.registering(Sync::class) {
 }
 
 gradle.projectsEvaluated {
-    val versionBuilds = subprojects.map { it.tasks.named("build") }
+    val versionProjects = subprojects.filter { !it.path.startsWith(":folia") && it.findProperty("minecraft_version") != null }
+    val versionBuilds = versionProjects.map { it.tasks.named("build") }
 
     collectReleaseJars.configure {
         dependsOn(versionBuilds)
 
-        subprojects.forEach { versionProject ->
+        versionProjects.forEach { versionProject ->
             val releaseJar = if (versionProject.findProperty("minecraft_version")
                     ?.toString()
                     ?.substringBefore('.')
@@ -43,7 +44,7 @@ gradle.projectsEvaluated {
         finalizedBy(collectReleaseJars)
     }
 
-    subprojects.forEach { versionProject ->
+    versionProjects.forEach { versionProject ->
         versionProject.tasks.matching { it.name == "build" }.configureEach {
             finalizedBy(collectReleaseJars)
         }

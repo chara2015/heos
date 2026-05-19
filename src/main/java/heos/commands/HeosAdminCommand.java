@@ -30,25 +30,24 @@ public class HeosAdminCommand {
                         )
                     )
                 )
-                .then(Commands.literal("unregister")
-                    .then(Commands.argument("player", StringArgumentType.string())
-                        .executes(HeosAdminCommand::unregister)
-                    )
-                )
                 .then(Commands.literal("info")
                     .then(Commands.argument("player", StringArgumentType.string())
                         .executes(HeosAdminCommand::info)
                     )
                 )
                 .then(Commands.literal("migrate")
+                    .requires(source -> Heos.getConfig().enablePlayerDataMigration)
                     .then(Commands.argument("sourcePlayer", StringArgumentType.string())
                         .then(Commands.argument("targetPlayer", StringArgumentType.string())
                             .executes(MigrateCommand::prepareMigrate)
                         )
                     )
                 )
-                .then(Commands.literal("confirm")
-                    .executes(MigrateCommand::confirmMigrate)
+                .then(Commands.literal("confirm-click")
+                    .requires(source -> Heos.getConfig().enablePlayerDataMigration)
+                    .then(Commands.argument("token", StringArgumentType.string())
+                        .executes(MigrateCommand::confirmMigrateFromClick)
+                    )
                 )
                 .then(Commands.literal("whitelist")
                     .then(Commands.literal("add")
@@ -112,31 +111,6 @@ public class HeosAdminCommand {
             targetPlayer.sendSystemMessage(Component.literal("New password: " + newPassword), false);
             targetPlayer.sendSystemMessage(Component.literal("Please use /changepassword soon"), false);
             targetPlayer.sendSystemMessage(Component.literal("================================="), false);
-        }
-
-        return 1;
-    }
-
-    private static int unregister(CommandContext<CommandSourceStack> context) {
-        CommandSourceStack source = context.getSource();
-        String targetUsername = StringArgumentType.getString(context, "player");
-
-        PlayerData data = Heos.getPlayerData(targetUsername);
-        if (!data.isRegistered()) {
-            source.sendFailure(Component.literal("Player " + targetUsername + " is not registered"));
-            return 0;
-        }
-
-        data.passwordHash = "";
-        data.save();
-        Heos.removePlayerData(targetUsername);
-
-        source.sendSuccess(() -> Component.literal("Unregistered player " + targetUsername), true);
-        HeosLogger.info("Admin " + source.getTextName() + " unregistered " + targetUsername);
-
-        ServerPlayer targetPlayer = source.getServer().getPlayerList().getPlayerByName(targetUsername);
-        if (targetPlayer != null) {
-            targetPlayer.connection.disconnect(Component.literal("Your account was unregistered by an administrator\nPlease register again"));
         }
 
         return 1;

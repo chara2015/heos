@@ -1,0 +1,20 @@
+enableAuthentication: true
+enableUnprefixedCommandHijack: true
+loginTimeout: 60
+loginReminderSeconds: 10
+minPasswordLength: 4
+maxPasswordLength: 32
+enableAutoLogTps: true
+autoLogTpsDelayTicks: 20
+enableWhitelist: false
+enableCustomBan: true
+enablePlayerDataMigration: false
+migrationBanSeconds: 30
+maxConcurrentSessionsPerIp: -1
+sessionLimitKickMessage: The online session limit for this IP has been reached
+enableUsernameLoginFailureLock: true
+usernameLoginFailureLimit: 5
+usernameLoginFailureLockSeconds: 30
+enableIpLoginFailureLock: false
+ipLoginFailureLimit: 10
+ipLoginFailureLockSeconds: 30

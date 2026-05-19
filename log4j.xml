@@ -4,6 +4,11 @@
 
 		<!--	System out	-->
 		<Console name="SysOut" target="SYSTEM_OUT">
+			<Filters>
+				<RegexFilter regex="(?i).*Method overwrite conflict.*getMergedTNT.*rems\.mixins\.json.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+				<RegexFilter regex="(?i).*Method overwrite conflict.*getClimateSettings.*architectury\.mixins\.json.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+				<RegexFilter regex="(?i).*@Redirect conflict.*Skipping carpet-extra\.mixins\.json:ServerPlayNetworkHandlerMixin.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+			</Filters>
 			<PatternLayout>
 				<LoggerNamePatternSelector defaultPattern="%style{[%d{HH:mm:ss}]}{blue} %highlight{[%t/%level]}{FATAL=red, ERROR=red, WARN=yellow, INFO=green, DEBUG=green, TRACE=blue}%highlight{:}{FATAL=red, ERROR=red, WARN=yellow, INFO=green, DEBUG=green, TRACE=blue} %style{[%logger{1}]}{cyan} %highlight{%msg{nolookups}%n}{FATAL=red, ERROR=red, WARN=normal, INFO=normal, DEBUG=normal, TRACE=normal}" disableAnsi="${sys:fabric.log.disableAnsi:-true}">
 					<!-- Dont show the logger name for minecraft classes-->
@@ -16,6 +21,11 @@
 
 		<!--	Vanilla server gui	-->
 		<Queue name="ServerGuiConsole" ignoreExceptions="true">
+			<Filters>
+				<RegexFilter regex="(?i).*Method overwrite conflict.*getMergedTNT.*rems\.mixins\.json.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+				<RegexFilter regex="(?i).*Method overwrite conflict.*getClimateSettings.*architectury\.mixins\.json.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+				<RegexFilter regex="(?i).*@Redirect conflict.*Skipping carpet-extra\.mixins\.json:ServerPlayNetworkHandlerMixin.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+			</Filters>
 			<PatternLayout>
 				<LoggerNamePatternSelector defaultPattern="[%d{HH:mm:ss} %level]: [%logger{1}] %msg{nolookups}%n">
 					<!-- Dont show the logger name for minecraft classes-->
@@ -28,6 +38,11 @@
 
 		<!--	latest.log same as vanilla	-->
 		<RollingRandomAccessFile name="LatestFile" fileName="logs/latest.log" filePattern="logs/%d{yyyy-MM-dd}-%i.log.gz">
+			<Filters>
+				<RegexFilter regex="(?i).*Method overwrite conflict.*getMergedTNT.*rems\.mixins\.json.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+				<RegexFilter regex="(?i).*Method overwrite conflict.*getClimateSettings.*architectury\.mixins\.json.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+				<RegexFilter regex="(?i).*@Redirect conflict.*Skipping carpet-extra\.mixins\.json:ServerPlayNetworkHandlerMixin.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+			</Filters>
 			<PatternLayout>
 				<LoggerNamePatternSelector defaultPattern="[%d{HH:mm:ss}] [%t/%level]: [%logger{1}] %msg{nolookups}%n">
 					<!-- Dont show the logger name for minecraft classes-->

@@ -19,7 +19,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class LogFilterService {
-    private static final Filter UPDATE_SUPPRESSION_FILTER = new UpdateSuppressionFilter();
+    private static final Filter HEOS_LOG_FILTER = new HeosLogFilter();
     private static boolean installed;
     private static long lastCrashNoticeMillis;
 
@@ -34,19 +34,22 @@ public final class LogFilterService {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
         Configuration configuration = context.getConfiguration();
         LoggerConfig rootLogger = configuration.getRootLogger();
-        rootLogger.addFilter(UPDATE_SUPPRESSION_FILTER);
+        rootLogger.addFilter(HEOS_LOG_FILTER);
         context.updateLoggers();
         installed = true;
         HeosLogger.info("日志过滤: Enabled");
     }
 
-    private static final class UpdateSuppressionFilter extends AbstractFilter {
+    private static final class HeosLogFilter extends AbstractFilter {
         private static final String PACKET_ERROR = "failed to handle packet";
         private static final String UPDATE_NEIGHBORS = "exception while updating neighbours";
         private static final String CAUSED_SERVER_CRASH = "you just caused a server crash";
         private static final String UPDATE_SUPPRESSION = "update suppression";
         private static final String STACK_OVERFLOW_SUPPRESSION = "stackoverflowsuppression";
         private static final String TIS_UPDATE_SUPPRESSION = "yeetupdatesuppressioncrash";
+        private static final String METHOD_OVERWRITE_CONFLICT = "method overwrite conflict";
+        private static final String REDIRECT_CONFLICT = "@redirect conflict";
+        private static final String SKIPPING_CARPET_EXTRA = "skipping carpet-extra.mixins.json:serverplaynetworkhandlermixin";
         private static final long STACK_SUMMARY_SUPPRESSION_MILLIS = 1000L;
         private static final Pattern BLOCK_POSITION = Pattern.compile("\\[[\\-0-9]+,\\s*[\\-0-9]+,\\s*[\\-0-9]+\\]");
         private static final Pattern BLOCK_POS_OBJECT = Pattern.compile("BlockPos\\{x=([\\-0-9]+),\\s*y=([\\-0-9]+),\\s*z=([\\-0-9]+)\\}");
@@ -61,6 +64,9 @@ public final class LogFilterService {
 
             String message = event.getMessage() == null ? "" : event.getMessage().getFormattedMessage();
             Throwable thrown = event.getThrown();
+            if (isKnownMixinNoise(message)) {
+                return Result.DENY;
+            }
             if (isUpdateSuppressionCrashNotice(message)) {
                 lastCrashNoticeMillis = System.currentTimeMillis();
                 HeosLogger.warn(Messages.updateSuppressionCrash(updateSuppressionDetail(message)));
@@ -74,6 +80,23 @@ public final class LogFilterService {
                 return Result.DENY;
             }
             return Result.NEUTRAL;
+        }
+
+        private boolean isKnownMixinNoise(String message) {
+            String normalizedMessage = message.toLowerCase(Locale.ROOT);
+            return isKnownOverwriteConflict(normalizedMessage)
+                    || (normalizedMessage.contains(REDIRECT_CONFLICT)
+                    && normalizedMessage.contains(SKIPPING_CARPET_EXTRA));
+        }
+
+        private boolean isKnownOverwriteConflict(String normalizedMessage) {
+            if (!normalizedMessage.contains(METHOD_OVERWRITE_CONFLICT)) {
+                return false;
+            }
+            return (normalizedMessage.contains("getmergedtnt")
+                    && normalizedMessage.contains("rems.mixins.json"))
+                    || (normalizedMessage.contains("getclimatesettings")
+                    && normalizedMessage.contains("architectury.mixins.json"));
         }
 
         private boolean matches(String message, Throwable thrown) {

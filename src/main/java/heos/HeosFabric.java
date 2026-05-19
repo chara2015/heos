@@ -6,7 +6,10 @@ import heos.commands.HeosAdminCommand;
 import heos.commands.LoginCommand;
 import heos.commands.RegisterCommand;
 import heos.event.AuthEventHandler;
+import heos.integrations.RecipeSyncFeature;
 import heos.utils.HeosLogger;
+import heos.utils.LogFilterService;
+import net.fabricmc.api.EnvType;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -16,7 +19,7 @@ import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.loader.api.FabricLoader;
-//? if < 1.21 {
+//? if < 1.21.2 {
 /*import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.item.ItemStack;
@@ -34,6 +37,14 @@ public class HeosFabric implements ModInitializer {
     @Override
     public void onInitialize() {
         Heos.gameDirectory = FabricLoader.getInstance().getGameDir();
+        RecipeSyncFeature.initialize();
+
+        if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
+            HeosLogger.info("Initialized Heos client compatibility features");
+            return;
+        }
+
+        LogFilterService.installConfiguredFilters();
         logStartupContext();
         installCommandCallbacks();
         installServerCallbacks();
@@ -71,7 +82,7 @@ public class HeosFabric implements ModInitializer {
     }
 
     private void registerUseItemGuard() {
-        //? if >= 1.21 {
+        //? if >= 1.21.2 {
         UseItemCallback.EVENT.register((player, world, hand) -> AuthEventHandler.onUseItem(player));
         //?} else {
         /*UseItemCallback.EVENT.register((player, world, hand) -> {

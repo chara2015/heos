@@ -8,6 +8,8 @@ import heos.utils.HeosLogger;
 import heos.utils.Messages;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.UUIDUtil;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -41,6 +43,10 @@ public final class MigrateCommand {
 
     public static int prepareMigrate(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
+        if (!isMigrationEnabled(source)) {
+            return 0;
+        }
+
         String sourceUsername = StringArgumentType.getString(context, "sourcePlayer");
         String targetUsername = StringArgumentType.getString(context, "targetPlayer");
 
@@ -49,24 +55,69 @@ public final class MigrateCommand {
             return 0;
         }
 
-        PENDING_MIGRATIONS.put(sourceKey(source), new PendingMigration(sourceUsername, targetUsername, System.currentTimeMillis()));
+        ServerPlayer confirmer = source.getPlayer();
+        if (confirmer == null) {
+            source.sendFailure(Component.literal("Migration must be confirmed by clicking the chat button in game."));
+            return 0;
+        }
+
+        String token = UUID.randomUUID().toString();
+        PENDING_MIGRATIONS.put(sourceKey(source), new PendingMigration(sourceUsername, targetUsername, token, System.currentTimeMillis()));
         source.sendSuccess(() -> Component.literal("Migration prepared: " + sourceUsername + " -> " + targetUsername), false);
-        source.sendSuccess(() -> Component.literal("Run /heos confirm within 60 seconds to execute it."), false);
+        source.sendSuccess(() -> Component.literal("Click the confirmation button within 60 seconds to execute it."), false);
+        source.sendSuccess(() -> confirmationButton(token), false);
         return 1;
     }
 
-    public static int confirmMigrate(CommandContext<CommandSourceStack> context) {
+    public static int confirmMigrateFromClick(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
-        PendingMigration migration = PENDING_MIGRATIONS.remove(sourceKey(source));
+        if (!isMigrationEnabled(source)) {
+            return 0;
+        }
+
+        String token = StringArgumentType.getString(context, "token");
+        String key = sourceKey(source);
+        PendingMigration migration = PENDING_MIGRATIONS.get(key);
         if (migration == null) {
             source.sendFailure(Component.literal("No pending migration. Use /heos migrate <source> <target> first."));
             return 0;
         }
+        if (!migration.token.equals(token)) {
+            source.sendFailure(Component.literal("Invalid migration confirmation. Please click the latest confirmation button."));
+            return 0;
+        }
         if (System.currentTimeMillis() - migration.createdAt > CONFIRM_TIMEOUT_MILLIS) {
+            PENDING_MIGRATIONS.remove(key);
             source.sendFailure(Component.literal("Pending migration expired. Use /heos migrate <source> <target> again."));
             return 0;
         }
+        PENDING_MIGRATIONS.remove(key);
         return executeMigrate(source, migration.sourceUsername, migration.targetUsername);
+    }
+
+    private static boolean isMigrationEnabled(CommandSourceStack source) {
+        if (Heos.getConfig().enablePlayerDataMigration) {
+            return true;
+        }
+        source.sendFailure(Component.literal("Player data migration is disabled in heos_config.json."));
+        return false;
+    }
+
+    private static Component confirmationButton(String token) {
+        String command = "/heos confirm-click " + token;
+        return Component.literal("[Confirm Migration]")
+                .withStyle(style -> style
+                        .withColor(ChatFormatting.GREEN)
+                        .withBold(true)
+                        .withClickEvent(runCommand(command)));
+    }
+
+    private static ClickEvent runCommand(String command) {
+        //? if >= 1.21.5 {
+        return new ClickEvent.RunCommand(command);
+        //?} else {
+        /*return new ClickEvent(ClickEvent.Action.RUN_COMMAND, command);
+        *///?}
     }
 
     private static int executeMigrate(CommandSourceStack source, String sourceUsername, String targetUsername) {
@@ -229,7 +280,7 @@ public final class MigrateCommand {
         return "console:" + source.getTextName();
     }
 
-    private record PendingMigration(String sourceUsername, String targetUsername, long createdAt) {
+    private record PendingMigration(String sourceUsername, String targetUsername, String token, long createdAt) {
     }
 
     private record PlayerFileType(String directory, String suffix) {

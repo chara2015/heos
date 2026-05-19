@@ -211,7 +211,7 @@ publishMods {
     displayName.set("${modName} ${property("display_name")} $dynamicVersion")
     version.set(dynamicVersion)
 
-    changelog.set(file("../../RELEASE_NOTE.md").readText())
+    changelog.set(rootProject.file("RELEASE_NOTE.md").takeIf { it.isFile }?.readText() ?: "")
     type.set(STABLE)
     modLoaders.add("fabric")
 
@@ -247,7 +247,7 @@ fun runGit(vararg args: String): String? = try {
 } catch (_: Exception) { null }
 
 fun loadHeosmodMetadata(file: File): Map<String, String> {
-    val pattern = Regex("""public\s+static\s+final\s+String\s+(\w+)\s*=\s*\"((?:\\.|[^\"])*)\";""")
+    val pattern = Regex("""public\s+static\s+final\s+String\s+(\w+)\s*=\s*"((?:\\.|[^"])*)";""")
     return pattern.findAll(file.readText()).associate { match ->
         val key = match.groupValues[1]
         val value = match.groupValues[2]
