@@ -24,6 +24,8 @@ public final class HeosFoliaPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        heos.folia.utils.FoliaMessages.init(this);
+        heos.folia.utils.FoliaLogFilterService.installConfiguredFilters(this);
         this.storage = new FoliaStorage(getDataFolder().toPath());
         storage.initialize();
         this.banData = FoliaBanData.load(getDataFolder().toPath(), getLogger());
@@ -32,6 +34,7 @@ public final class HeosFoliaPlugin extends JavaPlugin {
 
         this.authService = new FoliaAuthService(this, storage, tpsDisplayService);
         FoliaBanCommands banCommands = new FoliaBanCommands(banData);
+        new heos.folia.utils.FoliaBanCleanupService(this, banData);
         getServer().getPluginManager().registerEvents(new FoliaCommandInterceptor(this, authService, banCommands), this);
         getServer().getPluginManager().registerEvents(new FoliaAuthListener(this, authService, banData, whitelistData), this);
         registerCommands(banCommands);

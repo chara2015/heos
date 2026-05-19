@@ -100,12 +100,13 @@ public final class FoliaBanData {
         return removed;
     }
 
-    public synchronized void removeExpired() {
+    public synchronized boolean removeExpired() {
         ensureLists();
         boolean removed = playerBans.removeIf(BanEntry::isExpired) | ipBans.removeIf(IpBanEntry::isExpired);
         if (removed) {
             save();
         }
+        return removed;
     }
 
     synchronized void save() {

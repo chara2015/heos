@@ -20,11 +20,15 @@ import org.bukkit.event.player.PlayerCommandSendEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
+import heos.folia.utils.FoliaMessages;
+import heos.folia.utils.FoliaMojangApi;
+import heos.folia.utils.FoliaTimeParser;
 
 public final class FoliaAuthListener implements Listener {
     private final Plugin plugin;
@@ -40,21 +44,33 @@ public final class FoliaAuthListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
+    void onPreLogin(AsyncPlayerPreLoginEvent event) {
+        String username = event.getName();
+        if (!FoliaMojangApi.isValidMojangUsername(username) && !FoliaMojangApi.isAllowedOfflineUsername(username)) {
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, FoliaMessages.offlineNameHint());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
     void onLogin(PlayerLoginEvent event) {
         if (plugin.getConfig().getBoolean("enableWhitelist", false) && !whitelistData.isWhitelisted(event.getPlayer().getName())) {
-            event.disallow(PlayerLoginEvent.Result.KICK_WHITELIST, "You are not whitelisted on this server");
+            event.disallow(PlayerLoginEvent.Result.KICK_WHITELIST, FoliaMessages.whitelistKick());
+            plugin.getLogger().info(FoliaMessages.whitelistDeniedLog(event.getPlayer().getName()));
             return;
         }
         if (plugin.getConfig().getBoolean("enableCustomBan", true)) {
             FoliaBanData.BanEntry playerBan = banData.getPlayerBan(event.getPlayer().getName(), event.getPlayer().getUniqueId());
             if (playerBan != null) {
-                event.disallow(PlayerLoginEvent.Result.KICK_BANNED, FoliaBanCommands.banMessage(playerBan.reason, playerBan.expiryTime));
+                if (FoliaMessages.isMigrationReason(playerBan.reason)) {
+                    plugin.getLogger().info(FoliaMessages.migrationBanAttemptLog(event.getPlayer().getName()));
+                }
+                event.disallow(PlayerLoginEvent.Result.KICK_BANNED, FoliaMessages.banMessage(playerBan.reason, FoliaTimeParser.formatAbsolute(playerBan.expiryTime)));
                 return;
             }
             String ip = event.getAddress() == null ? "" : event.getAddress().getHostAddress();
             FoliaBanData.IpBanEntry ipBan = banData.getIpBan(ip);
             if (ipBan != null) {
-                event.disallow(PlayerLoginEvent.Result.KICK_BANNED, FoliaBanCommands.banIpMessage(ipBan.reason, ipBan.expiryTime));
+                event.disallow(PlayerLoginEvent.Result.KICK_BANNED, FoliaMessages.banIpMessage(ipBan.reason, FoliaTimeParser.formatAbsolute(ipBan.expiryTime)));
             }
         }
     }
@@ -78,7 +94,7 @@ public final class FoliaAuthListener implements Listener {
         String command = event.getMessage().startsWith("/") ? event.getMessage().substring(1) : event.getMessage();
         if (!authService.canRunCommandWhileLocked(command)) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(ChatColor.RED + "Please log in first");
+            event.getPlayer().sendMessage(ChatColor.RED + FoliaMessages.authPromptLogin());
         }
     }
 
@@ -110,7 +126,7 @@ public final class FoliaAuthListener implements Listener {
     void onChat(AsyncPlayerChatEvent event) {
         if (authService.shouldBlock(event.getPlayer())) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(ChatColor.RED + "Please log in first");
+            event.getPlayer().sendMessage(ChatColor.RED + FoliaMessages.authPromptLogin());
         }
     }
 

@@ -32,6 +32,7 @@ subprojects {
 
     dependencies {
         "compileOnly"("dev.folia:folia-api:${project.name}-R0.1-SNAPSHOT")
+        "compileOnly"("org.apache.logging.log4j:log4j-core:2.24.3")
         "implementation"("org.xerial:sqlite-jdbc:3.49.1.0")
     }
 

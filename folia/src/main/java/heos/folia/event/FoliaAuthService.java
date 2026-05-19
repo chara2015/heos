@@ -9,6 +9,7 @@ import heos.folia.utils.FoliaTpsDisplayService;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+import heos.folia.utils.FoliaMessages;
 
 import java.util.Map;
 import java.util.UUID;
@@ -38,13 +39,33 @@ public final class FoliaAuthService {
             tpsDisplayService.start(player);
             return;
         }
+        if (isPremiumUuid(player)) {
+            data.uuid = player.getUniqueId();
+            data.isOnlineAccount = true;
+            data.lastIp = FoliaPlayerAccess.ip(player);
+            data.lastLoginTime = System.currentTimeMillis();
+            storage.save(data);
+            
+            Session session = new Session(data, true);
+            session.ip = FoliaPlayerAccess.ip(player);
+            sessions.put(player.getUniqueId(), session);
+            tpsDisplayService.start(player);
+            player.sendMessage(ChatColor.GREEN + FoliaMessages.premiumWelcome());
+            return;
+        }
+
         boolean registered = data.isRegistered();
         sessions.put(player.getUniqueId(), new Session(data, false));
         player.sendMessage(registered
-                ? ChatColor.YELLOW + "Please log in with /login <password>"
-                : ChatColor.YELLOW + "Please register with /register <password> <confirmPassword>");
+                ? ChatColor.YELLOW + FoliaMessages.loginInputHint()
+                : ChatColor.YELLOW + FoliaMessages.registerInputHint());
         scheduleLoginTimeout(player);
         scheduleLoginReminder(player);
+    }
+
+    private boolean isPremiumUuid(Player player) {
+        UUID offline = UUID.nameUUIDFromBytes(("OfflinePlayer:" + player.getName()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return !player.getUniqueId().equals(offline);
     }
 
     public void remove(Player player) {
@@ -82,7 +103,7 @@ public final class FoliaAuthService {
             return;
         }
         if (!data.isRegistered()) {
-            player.sendMessage(ChatColor.RED + "You are not registered. Use /register <password> <confirmPassword>");
+            player.sendMessage(ChatColor.RED + FoliaMessages.notRegistered());
             return;
         }
         if (!FoliaPasswordHasher.verifyPassword(password, data.passwordHash)) {
@@ -90,7 +111,7 @@ public final class FoliaAuthService {
                 player.kickPlayer(failureTracker.blockMessage(player.getName(), ip));
                 return;
             }
-            player.sendMessage(ChatColor.RED + "Wrong password");
+            player.sendMessage(ChatColor.RED + FoliaMessages.wrongPassword());
             return;
         }
         if (!markAuthenticated(player, session)) {
@@ -103,24 +124,28 @@ public final class FoliaAuthService {
             data.passwordHash = FoliaPasswordHasher.hashPassword(password);
         }
         storage.save(data);
-        player.sendMessage(ChatColor.GREEN + "Login successful");
+        player.sendMessage(ChatColor.GREEN + FoliaMessages.loginSuccess());
     }
 
     public void register(Player player, String password, String confirmPassword) {
         Session session = session(player);
         FoliaPlayerData data = session.data;
         if (data.isRegistered()) {
-            player.sendMessage(ChatColor.RED + "You are already registered");
+            player.sendMessage(ChatColor.RED + FoliaMessages.alreadyRegistered());
             return;
         }
         if (!password.equals(confirmPassword)) {
-            player.sendMessage(ChatColor.RED + "Passwords do not match");
+            player.sendMessage(ChatColor.RED + FoliaMessages.passwordMismatch());
             return;
         }
         int min = plugin.getConfig().getInt("minPasswordLength", 4);
         int max = plugin.getConfig().getInt("maxPasswordLength", 32);
-        if (password.length() < min || password.length() > max) {
-            player.sendMessage(ChatColor.RED + "Password length must be between " + min + " and " + max);
+        if (password.length() < min) {
+            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooShort().formatted(min));
+            return;
+        }
+        if (password.length() > max) {
+            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooLong().formatted(max));
             return;
         }
         data.uuid = player.getUniqueId();
@@ -133,18 +158,18 @@ public final class FoliaAuthService {
             return;
         }
         storage.save(data);
-        player.sendMessage(ChatColor.GREEN + "Registration successful");
+        player.sendMessage(ChatColor.GREEN + FoliaMessages.registerSuccess());
     }
 
     public void changePassword(Player player, String oldPassword, String newPassword) {
         Session session = session(player);
         if (!session.authenticated) {
-            player.sendMessage(ChatColor.RED + "Please log in before changing your password");
+            player.sendMessage(ChatColor.RED + FoliaMessages.authPromptLogin());
             return;
         }
         FoliaPlayerData data = session.data;
         if (!FoliaPasswordHasher.verifyPassword(oldPassword, data.passwordHash)) {
-            player.sendMessage(ChatColor.RED + "Old password is incorrect");
+            player.sendMessage(ChatColor.RED + FoliaMessages.wrongPassword());
             return;
         }
         if (oldPassword.equals(newPassword)) {
@@ -153,13 +178,17 @@ public final class FoliaAuthService {
         }
         int min = plugin.getConfig().getInt("minPasswordLength", 4);
         int max = plugin.getConfig().getInt("maxPasswordLength", 32);
-        if (newPassword.length() < min || newPassword.length() > max) {
-            player.sendMessage(ChatColor.RED + "Password length must be between " + min + " and " + max);
+        if (newPassword.length() < min) {
+            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooShort().formatted(min));
+            return;
+        }
+        if (newPassword.length() > max) {
+            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooLong().formatted(max));
             return;
         }
         data.passwordHash = FoliaPasswordHasher.hashPassword(newPassword);
         storage.save(data);
-        player.sendMessage(ChatColor.GREEN + "Password changed successfully");
+        player.sendMessage(ChatColor.GREEN + FoliaMessages.keepPasswordSafe());
     }
 
     public void close() {
@@ -171,7 +200,7 @@ public final class FoliaAuthService {
         int timeoutSeconds = Math.max(1, plugin.getConfig().getInt("loginTimeout", 60));
         player.getScheduler().runDelayed(plugin, task -> {
             if (player.isOnline() && shouldBlock(player)) {
-                player.kickPlayer("Login timed out");
+                player.kickPlayer(FoliaMessages.loginTimeout());
             }
         }, null, timeoutSeconds * 20L);
     }
@@ -184,8 +213,8 @@ public final class FoliaAuthService {
             }
             FoliaPlayerData data = session(player).data;
             player.sendMessage(data.isRegistered()
-                    ? ChatColor.YELLOW + "Please log in with /login <password>"
-                    : ChatColor.YELLOW + "Please register with /register <password> <confirmPassword>");
+                    ? ChatColor.YELLOW + FoliaMessages.loginInputHint()
+                    : ChatColor.YELLOW + FoliaMessages.registerInputHint());
             scheduleLoginReminder(player);
         }, null, reminderSeconds * 20L);
     }
