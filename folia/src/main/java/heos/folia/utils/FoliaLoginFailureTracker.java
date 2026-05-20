@@ -23,7 +23,7 @@ public final class FoliaLoginFailureTracker {
         long usernameRemaining = remainingSeconds(usernameFailures.get(normalize(username)));
         long ipRemaining = remainingSeconds(ipFailures.get(normalize(ip)));
         long remaining = Math.max(usernameRemaining, ipRemaining);
-        return "Too many failed login attempts. Please try again in " + Math.max(1L, remaining) + " seconds";
+        return FoliaMessages.loginFailureLock(Math.max(1L, remaining));
     }
 
     public boolean recordFailure(String username, String ip) {

@@ -10,6 +10,7 @@ public final class FoliaPlayerData {
     public long registeredTime;
     public long lastLoginTime;
     public boolean isOnlineAccount;
+    public transient String storageKey;
 
     public FoliaPlayerData(String username) {
         this.username = username;

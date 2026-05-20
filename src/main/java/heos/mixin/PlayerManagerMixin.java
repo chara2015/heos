@@ -54,7 +54,8 @@ public abstract class PlayerManagerMixin {
             return;
         }
 
-        PlayerData storedData = Heos.getPlayerData(username);
+        boolean onlineSession = heos$isVerifiedOnlineSession(player, username);
+        PlayerData storedData = Heos.getPlayerData(username, onlineSession);
         heos$prepareSession(authState, connection, storedData);
         if (heos$exceedsIpSessionLimit(player)) {
             player.connection.disconnect(Component.literal(Heos.getConfig().sessionLimitKickMessage));
@@ -66,7 +67,7 @@ public abstract class PlayerManagerMixin {
             return;
         }
 
-        if (heos$isVerifiedOnlineSession(player, username)) {
+        if (onlineSession) {
             heos$acceptPremiumPlayer(player, authState, storedData, username);
             return;
         }

@@ -7,6 +7,7 @@
     "PlayerDamageGateMixin",
     "ServerLoginNetworkHandlerMixin",
     "ServerPlayerEntityMixin",
+    "TargetingConditionsMixin",
     "PlayerManagerMixin",
     "UserWhiteListMixin",
     "ServerPlayNetworkHandlerMixin",

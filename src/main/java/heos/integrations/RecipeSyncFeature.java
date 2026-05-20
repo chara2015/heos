@@ -17,16 +17,16 @@ public final class RecipeSyncFeature {
 
     public static void initialize() {
         //? if >= 1.21.11 {
-        synchronizeVanillaRecipeSerializers();
+        synchronizeModRecipeSerializers();
         //?}
     }
 
     //? if >= 1.21.11 {
-    private static void synchronizeVanillaRecipeSerializers() {
+    private static void synchronizeModRecipeSerializers() {
         int synchronizedCount = 0;
 
         for (RecipeSerializer<?> serializer : BuiltInRegistries.RECIPE_SERIALIZER) {
-            if (!"minecraft".equals(BuiltInRegistries.RECIPE_SERIALIZER.getKey(serializer).getNamespace())) {
+            if ("minecraft".equals(BuiltInRegistries.RECIPE_SERIALIZER.getKey(serializer).getNamespace())) {
                 continue;
             }
 
@@ -39,7 +39,7 @@ public final class RecipeSyncFeature {
             }
         }
 
-        HeosLogger.info("Enabled Fabric recipe sync for " + synchronizedCount + " vanilla recipe serializers");
+        HeosLogger.info("Enabled Fabric recipe sync for " + synchronizedCount + " mod recipe serializers");
     }
     //?}
 }

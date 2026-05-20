@@ -32,6 +32,8 @@ subprojects {
 
     dependencies {
         "compileOnly"("dev.folia:folia-api:${project.name}-R0.1-SNAPSHOT")
+        nettyCompileOnly("netty-common", "4.1.118.Final")
+        nettyCompileOnly("netty-transport", "4.1.118.Final")
         "compileOnly"("org.apache.logging.log4j:log4j-core:2.24.3")
         "implementation"("org.xerial:sqlite-jdbc:3.49.1.0")
     }
@@ -55,6 +57,9 @@ subprojects {
     }
 
     tasks.withType<ProcessResources>().configureEach {
+        from(rootProject.layout.projectDirectory.dir("src/main/resources/data")) {
+            into("data")
+        }
         filesMatching("plugin.yml") {
             expand(
                 mapOf(
@@ -112,5 +117,20 @@ fun loadHeosmodMetadata(file: File): Map<String, String> {
             .replace("\\n", "\n")
             .replace("\\\\", "\\")
         key to value
+    }
+}
+
+fun DependencyHandler.nettyCompileOnly(module: String, version: String) {
+    val cachedJar = file(System.getenv("GRADLE_USER_HOME") ?: "D:/.gradle")
+        .resolve("caches/modules-2/files-2.1/io.netty/$module/$version")
+        .takeIf { it.isDirectory }
+        ?.walkTopDown()
+        ?.firstOrNull { it.isFile && it.name == "$module-$version.jar" }
+    if (cachedJar != null) {
+        add("compileOnly", files(cachedJar))
+    } else {
+        add("compileOnly", "io.netty:$module:$version") {
+            (this as ExternalModuleDependency).isTransitive = false
+        }
     }
 }

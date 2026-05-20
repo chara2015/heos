@@ -50,6 +50,7 @@ public final class LogFilterService {
         private static final String METHOD_OVERWRITE_CONFLICT = "method overwrite conflict";
         private static final String REDIRECT_CONFLICT = "@redirect conflict";
         private static final String SKIPPING_CARPET_EXTRA = "skipping carpet-extra.mixins.json:serverplaynetworkhandlermixin";
+        private static final String YGGDRASIL_PUBLIC_KEY_FAILURE = "failed to request yggdrasil public key";
         private static final long STACK_SUMMARY_SUPPRESSION_MILLIS = 1000L;
         private static final Pattern BLOCK_POSITION = Pattern.compile("\\[[\\-0-9]+,\\s*[\\-0-9]+,\\s*[\\-0-9]+\\]");
         private static final Pattern BLOCK_POS_OBJECT = Pattern.compile("BlockPos\\{x=([\\-0-9]+),\\s*y=([\\-0-9]+),\\s*z=([\\-0-9]+)\\}");
@@ -64,7 +65,7 @@ public final class LogFilterService {
 
             String message = event.getMessage() == null ? "" : event.getMessage().getFormattedMessage();
             Throwable thrown = event.getThrown();
-            if (isKnownMixinNoise(message)) {
+            if (isKnownMixinNoise(message) || isKnownAuthlibNoise(message, thrown)) {
                 return Result.DENY;
             }
             if (isUpdateSuppressionCrashNotice(message)) {
@@ -87,6 +88,23 @@ public final class LogFilterService {
             return isKnownOverwriteConflict(normalizedMessage)
                     || (normalizedMessage.contains(REDIRECT_CONFLICT)
                     && normalizedMessage.contains(SKIPPING_CARPET_EXTRA));
+        }
+
+        private boolean isKnownAuthlibNoise(String message, Throwable thrown) {
+            if (message.toLowerCase(Locale.ROOT).contains(YGGDRASIL_PUBLIC_KEY_FAILURE)) {
+                return true;
+            }
+            Throwable current = thrown;
+            while (current != null) {
+                String text = (current.getClass().getName() + " " + current.getMessage()).toLowerCase(Locale.ROOT);
+                if (text.contains("api.minecraftservices.com/publickeys")
+                        || text.contains("remote host terminated the handshake")
+                        || text.contains("ssl peer shut down incorrectly")) {
+                    return true;
+                }
+                current = current.getCause();
+            }
+            return false;
         }
 
         private boolean isKnownOverwriteConflict(String normalizedMessage) {

@@ -1,6 +1,7 @@
 package heos.folia.commands;
 
 import heos.folia.storage.FoliaBanData;
+import heos.folia.utils.FoliaMessages;
 import heos.folia.utils.FoliaPlayerAccess;
 import heos.folia.utils.FoliaTimeParser;
 import org.bukkit.Bukkit;
@@ -176,11 +177,11 @@ public final class FoliaBanCommands implements CommandExecutor, TabCompleter {
     }
 
     public static String banMessage(String reason, long expiryTime) {
-        return "You are banned\nReason: " + reason + "\nUntil: " + FoliaTimeParser.formatAbsolute(expiryTime);
+        return FoliaMessages.banMessage(reason, FoliaTimeParser.formatAbsolute(expiryTime));
     }
 
     public static String banIpMessage(String reason, long expiryTime) {
-        return "Your IP is banned\nReason: " + reason + "\nUntil: " + FoliaTimeParser.formatAbsolute(expiryTime);
+        return FoliaMessages.banIpMessage(reason, FoliaTimeParser.formatAbsolute(expiryTime));
     }
 
     @Override

@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public final class FoliaMessages {
+    private static final String DEFAULT_LANGUAGE = "zh_cn";
     private static final Gson GSON = new Gson();
     private static Map<String, String> FALLBACK = Collections.emptyMap();
     private static Plugin plugin;
@@ -39,7 +40,7 @@ public final class FoliaMessages {
     }
 
     public static String translate(String key) {
-        String language = plugin == null ? "en_us" : plugin.getConfig().getString("language", "en_us");
+        String language = plugin == null ? DEFAULT_LANGUAGE : plugin.getConfig().getString("language", DEFAULT_LANGUAGE);
         Map<String, String> current = loadLanguage(language);
         if (current.containsKey(key)) {
             return current.get(key);
@@ -56,11 +57,11 @@ public final class FoliaMessages {
     }
 
     public static String offlineNameHint() {
-        return translate("text.heos.disallowedUsername");
+        return translate("text.heos.disallowedUsername").formatted(allowedUsernamePattern());
     }
 
     public static String invalidOfflineNameLog() {
-        return translate("text.heos.disallowedUsername");
+        return translate("text.heos.disallowedUsername").formatted(allowedUsernamePattern());
     }
 
     public static String loginTimeout() {
@@ -69,6 +70,10 @@ public final class FoliaMessages {
 
     public static String premiumWelcome() {
         return translate("text.heos.onlinePlayerLogin");
+    }
+
+    public static String authServiceUnavailable() {
+        return translate("text.heos.authServiceUnavailable");
     }
 
     public static String loginInputHint() {
@@ -128,7 +133,7 @@ public final class FoliaMessages {
     }
 
     public static String keepPasswordSafe() {
-        return translate("text.heos.successfullyAuthenticated");
+        return translate("text.heos.keepPasswordSafe");
     }
 
     public static boolean isMigrationReason(String reason) {
@@ -142,6 +147,10 @@ public final class FoliaMessages {
 
     public static String whitelistKick() {
         return translate("text.heos.whitelistKick");
+    }
+
+    public static String loginFailureLock(long seconds) {
+        return translate("text.heos.loginFailureLock").formatted(seconds);
     }
 
     public static String whitelistDeniedLog(String username) {
@@ -160,11 +169,10 @@ public final class FoliaMessages {
         return translate("text.heos.playerAlreadyOnline").formatted(username);
     }
 
-    public static String updateSuppressionCrash(String detail) {
-        return translate("text.heos.updateSuppressionCrash").formatted(detail);
-    }
-
-    public static String unknownPosition() {
-        return translate("text.heos.unknownPosition");
+    private static String allowedUsernamePattern() {
+        if (plugin != null && plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true)) {
+            return translate("text.heos.usernamePatternExtended");
+        }
+        return translate("text.heos.usernamePatternSimple");
     }
 }

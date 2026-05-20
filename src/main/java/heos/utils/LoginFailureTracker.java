@@ -21,7 +21,7 @@ public final class LoginFailureTracker {
         long usernameRemaining = remainingSeconds(USERNAME_FAILURES.get(normalize(username)));
         long ipRemaining = remainingSeconds(IP_FAILURES.get(normalize(ip)));
         long remaining = Math.max(usernameRemaining, ipRemaining);
-        return "Too many failed login attempts. Please try again in " + Math.max(1L, remaining) + " seconds";
+        return Messages.loginFailureLock(Math.max(1L, remaining));
     }
 
     public static boolean recordFailure(String username, String ip) {

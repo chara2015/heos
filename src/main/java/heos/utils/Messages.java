@@ -53,7 +53,7 @@ public final class Messages {
     }
 
     public static String offlineNameHint() {
-        return translate("text.heos.disallowedUsername");
+        return translate("text.heos.disallowedUsername").formatted(allowedUsernamePattern());
     }
 
     public static String offlineNameLogOnly() {
@@ -61,7 +61,7 @@ public final class Messages {
     }
 
     public static String invalidOfflineNameLog() {
-        return translate("text.heos.disallowedUsername");
+        return translate("text.heos.disallowedUsername").formatted(allowedUsernamePattern());
     }
 
     public static String loginTimeout() {
@@ -70,6 +70,10 @@ public final class Messages {
 
     public static String premiumWelcome() {
         return translate("text.heos.onlinePlayerLogin");
+    }
+
+    public static String authServiceUnavailable() {
+        return translate("text.heos.authServiceUnavailable");
     }
 
     public static String loginInputHint() {
@@ -129,7 +133,7 @@ public final class Messages {
     }
 
     public static String keepPasswordSafe() {
-        return translate("text.heos.successfullyAuthenticated");
+        return translate("text.heos.keepPasswordSafe");
     }
 
     public static boolean isMigrationReason(String reason) {
@@ -143,6 +147,10 @@ public final class Messages {
 
     public static String migrationBanLogOnly() {
         return "HEOS_MIGRATION_BAN";
+    }
+
+    public static String loginFailureLock(long seconds) {
+        return translate("text.heos.loginFailureLock").formatted(seconds);
     }
 
     public static String whitelistLogOnly() {
@@ -175,5 +183,12 @@ public final class Messages {
 
     public static String unknownPosition() {
         return translate("text.heos.unknownPosition");
+    }
+
+    private static String allowedUsernamePattern() {
+        if (Heos.getConfig() != null && Heos.getConfig().allowMoreOfflineUsernameCharacters) {
+            return translate("text.heos.usernamePatternExtended");
+        }
+        return translate("text.heos.usernamePatternSimple");
     }
 }

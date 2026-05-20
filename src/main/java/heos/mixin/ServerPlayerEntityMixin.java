@@ -13,6 +13,7 @@ import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.entity.Mob;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -59,6 +60,7 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
             player.level().getServer().getCommands().sendCommands(player);
 
             ServerLevel world = heos$getServerWorld(player);
+            heos$clearNearbyMobTargets(player, world);
             BlockPos pos = player.blockPosition();
             world.sendBlockUpdated(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
             world.sendBlockUpdated(pos.above(), world.getBlockState(pos.above()), world.getBlockState(pos.above()), 3);
@@ -191,6 +193,7 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
             }
 
             ServerLevel world = heos$getServerWorld(player);
+            heos$clearNearbyMobTargets(player, world);
             BlockPos pos = player.blockPosition();
             if (world.getBlockState(pos).getBlock().equals(Blocks.NETHER_PORTAL)
                     || world.getBlockState(pos.above()).getBlock().equals(Blocks.NETHER_PORTAL)) {
@@ -204,6 +207,13 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
             }
 
             ci.cancel();
+        }
+    }
+
+    @Unique
+    private void heos$clearNearbyMobTargets(ServerPlayer player, ServerLevel world) {
+        for (Mob mob : world.getEntitiesOfClass(Mob.class, player.getBoundingBox().inflate(16.0D), mob -> mob.getTarget() == player)) {
+            mob.setTarget(null);
         }
     }
 

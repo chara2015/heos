@@ -11,7 +11,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
@@ -46,13 +48,19 @@ public final class FoliaAuthListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     void onPreLogin(AsyncPlayerPreLoginEvent event) {
         String username = event.getName();
-        if (!FoliaMojangApi.isValidMojangUsername(username) && !FoliaMojangApi.isAllowedOfflineUsername(username)) {
+        boolean allowMoreCharacters = plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true);
+        if (!FoliaMojangApi.isValidMojangUsername(username) && !FoliaMojangApi.isAllowedOfflineUsername(username, allowMoreCharacters)) {
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, FoliaMessages.offlineNameHint());
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
     void onLogin(PlayerLoginEvent event) {
+        if (!authService.areOfflinePlayersAllowed() && !isPremiumUuid(event.getPlayer())) {
+            plugin.getLogger().info("Offline player is not allowed: " + event.getPlayer().getName());
+            event.disallow(PlayerLoginEvent.Result.KICK_OTHER, FoliaMessages.offlineNameHint());
+            return;
+        }
         if (plugin.getConfig().getBoolean("enableWhitelist", false) && !whitelistData.isWhitelisted(event.getPlayer().getName())) {
             event.disallow(PlayerLoginEvent.Result.KICK_WHITELIST, FoliaMessages.whitelistKick());
             plugin.getLogger().info(FoliaMessages.whitelistDeniedLog(event.getPlayer().getName()));
@@ -73,6 +81,11 @@ public final class FoliaAuthListener implements Listener {
                 event.disallow(PlayerLoginEvent.Result.KICK_BANNED, FoliaMessages.banIpMessage(ipBan.reason, FoliaTimeParser.formatAbsolute(ipBan.expiryTime)));
             }
         }
+    }
+
+    private static boolean isPremiumUuid(Player player) {
+        java.util.UUID offline = java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + player.getName()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return !player.getUniqueId().equals(offline);
     }
 
     @EventHandler
@@ -188,6 +201,21 @@ public final class FoliaAuthListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     void onPickup(EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player && authService.shouldBlock(player)) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    void onTarget(EntityTargetLivingEntityEvent event) {
+        if (event.getTarget() instanceof Player player && authService.shouldBlock(player)) {
+            event.setCancelled(true);
+            event.setTarget(null);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    void onDamage(EntityDamageEvent event) {
         if (event.getEntity() instanceof Player player && authService.shouldBlock(player)) {
             event.setCancelled(true);
         }

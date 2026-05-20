@@ -31,15 +31,17 @@ public final class FoliaAuthService {
     }
 
     public void prepare(Player player) {
-        FoliaPlayerData data = storage.load(player.getName());
+        boolean premium = isPremiumUuid(player);
+        FoliaPlayerData data = storage.load(player.getName(), premium, separateOnlineOfflineAccounts());
         if (!isAuthenticationEnabled()) {
             Session session = new Session(data, true);
             session.ip = FoliaPlayerAccess.ip(player);
             sessions.put(player.getUniqueId(), session);
+            updateLoginProtection(player, false);
             tpsDisplayService.start(player);
             return;
         }
-        if (isPremiumUuid(player)) {
+        if (premium) {
             data.uuid = player.getUniqueId();
             data.isOnlineAccount = true;
             data.lastIp = FoliaPlayerAccess.ip(player);
@@ -49,6 +51,7 @@ public final class FoliaAuthService {
             Session session = new Session(data, true);
             session.ip = FoliaPlayerAccess.ip(player);
             sessions.put(player.getUniqueId(), session);
+            updateLoginProtection(player, false);
             tpsDisplayService.start(player);
             player.sendMessage(ChatColor.GREEN + FoliaMessages.premiumWelcome());
             return;
@@ -56,6 +59,7 @@ public final class FoliaAuthService {
 
         boolean registered = data.isRegistered();
         sessions.put(player.getUniqueId(), new Session(data, false));
+        updateLoginProtection(player, true);
         player.sendMessage(registered
                 ? ChatColor.YELLOW + FoliaMessages.loginInputHint()
                 : ChatColor.YELLOW + FoliaMessages.registerInputHint());
@@ -87,6 +91,14 @@ public final class FoliaAuthService {
 
     public boolean isAuthenticationEnabled() {
         return plugin.getConfig().getBoolean("enableAuthentication", true);
+    }
+
+    public boolean areOfflinePlayersAllowed() {
+        return plugin.getConfig().getBoolean("allowOfflinePlayers", true);
+    }
+
+    public boolean separateOnlineOfflineAccounts() {
+        return plugin.getConfig().getBoolean("separateOnlineOfflineAccounts", true);
     }
 
     public boolean canRunCommandWhileLocked(String commandLine) {
@@ -220,7 +232,11 @@ public final class FoliaAuthService {
     }
 
     private Session session(Player player) {
-        return sessions.computeIfAbsent(player.getUniqueId(), ignored -> new Session(storage.load(player.getName()), false));
+        boolean premium = isPremiumUuid(player);
+        return sessions.computeIfAbsent(player.getUniqueId(), ignored -> new Session(
+                storage.load(player.getName(), premium, separateOnlineOfflineAccounts()),
+                false
+        ));
     }
 
     private boolean markAuthenticated(Player player, Session session) {
@@ -236,8 +252,15 @@ public final class FoliaAuthService {
         session.ip = ip;
         session.authenticated = true;
         authenticatedSessionsByIp.merge(ip, 1, Integer::sum);
+        updateLoginProtection(player, false);
         tpsDisplayService.start(player);
         return true;
+    }
+
+    private static void updateLoginProtection(Player player, boolean protectedDuringLogin) {
+        player.setInvulnerable(protectedDuringLogin);
+        player.setInvisible(protectedDuringLogin);
+        player.setCollidable(!protectedDuringLogin);
     }
 
     private void decrementIp(String ip) {

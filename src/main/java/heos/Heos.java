@@ -50,15 +50,22 @@ public class Heos {
     }
 
     public static PlayerData getPlayerData(String username) {
-        return playerDataCache.computeIfAbsent(username.toLowerCase(), k -> PlayerData.load(username));
+        return getPlayerData(username, false);
+    }
+
+    public static PlayerData getPlayerData(String username, boolean onlineAccount) {
+        String cacheKey = PlayerData.cacheKey(username, onlineAccount);
+        return playerDataCache.computeIfAbsent(cacheKey, k -> PlayerData.load(username, onlineAccount));
     }
 
     public static void removePlayerData(String username) {
-        playerDataCache.remove(username.toLowerCase());
+        invalidatePlayerData(username);
         PlayerData.delete(username);
     }
 
     public static void invalidatePlayerData(String username) {
+        playerDataCache.remove(PlayerData.cacheKey(username, true));
+        playerDataCache.remove(PlayerData.cacheKey(username, false));
         playerDataCache.remove(username.toLowerCase());
     }
 

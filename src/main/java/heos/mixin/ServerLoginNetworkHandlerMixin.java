@@ -151,9 +151,15 @@ public abstract class ServerLoginNetworkHandlerMixin {
 
         String normalized = message.toLowerCase(Locale.ROOT);
         if (normalized.contains("invalid session")
-                || normalized.contains("failed to verify username")) {
+                || normalized.contains("failed to verify username")
+                || normalized.contains("authentication servers are down")
+                || normalized.contains("multiplayer.disconnect.authservers_down")) {
             heos$pendingPremiumVerification = false;
-            heos$disconnectWithoutVanillaLogs(Component.literal(Messages.offlineNameHint()), Component.literal(Messages.offlineNameLogOnly()));
+            if (heos$fallbackToPasswordLogin()) {
+                ci.cancel();
+                return;
+            }
+            heos$disconnectWithoutVanillaLogs(Component.literal(Messages.authServiceUnavailable()), Component.literal(Messages.offlineNameLogOnly()));
             ci.cancel();
         }
     }
@@ -215,8 +221,13 @@ public abstract class ServerLoginNetworkHandlerMixin {
         if (MojangApi.isValidMojangUsername(username)) {
             return false;
         }
-        if (!MojangApi.isAllowedOfflineUsername(username)) {
+        if (!MojangApi.isAllowedOfflineUsername(username, Heos.getConfig().allowMoreOfflineUsernameCharacters)) {
             HeosLogger.info(Messages.invalidOfflineNameLog() + ": " + username);
+            heos$disconnectWithoutVanillaLogs(Component.literal(Messages.offlineNameHint()), Component.literal(Messages.offlineNameLogOnly()));
+            return true;
+        }
+        if (!Heos.getConfig().allowOfflinePlayers) {
+            HeosLogger.info("Offline player is not allowed: " + username);
             heos$disconnectWithoutVanillaLogs(Component.literal(Messages.offlineNameHint()), Component.literal(Messages.offlineNameLogOnly()));
             return true;
         }
@@ -228,7 +239,7 @@ public abstract class ServerLoginNetworkHandlerMixin {
 
     @Unique
     private boolean heos$shouldContinueVanillaPremiumFlow(String username) {
-        PlayerData data = Heos.getPlayerData(username);
+        PlayerData data = Heos.getPlayerData(username, true);
         if (data.isOnlineAccount) {
             HeosLogger.debug("Player " + username + " is cached as premium, continuing vanilla auth");
             return true;
@@ -236,17 +247,37 @@ public abstract class ServerLoginNetworkHandlerMixin {
 
         MojangApi.LookupResult lookup = MojangApi.lookupAccount(username);
         if (lookup.type == MojangApi.LookupResultType.ERROR) {
-            HeosLogger.warn("Mojang API lookup failed for " + username + ", allowing vanilla online-mode auth");
-            return true;
+            HeosLogger.warn("Mojang API lookup failed for " + username + ", falling back to Heos password login");
+            if (Heos.getConfig().allowOfflinePlayers) {
+                heos$acceptOfflineLogin(username);
+            } else {
+                heos$disconnectWithoutVanillaLogs(Component.literal(Messages.authServiceUnavailable()), Component.literal(Messages.offlineNameLogOnly()));
+            }
+            return false;
         }
 
         if (lookup.type == MojangApi.LookupResultType.NOT_FOUND) {
-            HeosLogger.info(Messages.invalidOfflineNameLog() + ": " + username);
-            heos$disconnectWithoutVanillaLogs(Component.literal(Messages.offlineNameHint()), Component.literal(Messages.offlineNameLogOnly()));
+            if (Heos.getConfig().allowOfflinePlayers) {
+                HeosLogger.info("Offline player is using an available non-premium username: " + username);
+                heos$acceptOfflineLogin(username);
+            } else {
+                HeosLogger.info("Offline player is not allowed: " + username);
+                heos$disconnectWithoutVanillaLogs(Component.literal(Messages.offlineNameHint()), Component.literal(Messages.offlineNameLogOnly()));
+            }
             return false;
         }
 
         HeosLogger.info("Player " + username + " uses a premium name, deferring to vanilla authentication");
+        return true;
+    }
+
+    @Unique
+    private boolean heos$fallbackToPasswordLogin() {
+        if (!Heos.getConfig().allowOfflinePlayers || heos$loginUsername == null || heos$loginUsername.isBlank()) {
+            return false;
+        }
+        HeosLogger.warn("Premium authentication failed for " + heos$loginUsername + ", falling back to Heos password login");
+        heos$acceptOfflineLogin(heos$loginUsername);
         return true;
     }
 

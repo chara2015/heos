@@ -5,6 +5,7 @@
   "text.heos.matchPassword": "§6Passwords must match!",
   "text.heos.alreadyAuthenticated": "§6You are already authenticated.",
   "text.heos.successfullyAuthenticated": "§aYou are now authenticated.",
+  "text.heos.keepPasswordSafe": "§aKeep your password safe.",
   "text.heos.timeExpired": "§cAuthentication time has expired.",
   "text.heos.registerRequired": "§6Use /register <password> <confirm password> to claim this account.",
   "text.heos.alreadyRegistered": "§6This account is already registered!",
@@ -12,13 +13,17 @@
   "text.heos.maxPasswordChars": "§6Password can be at most %d characters long!",
   "text.heos.minPasswordChars": "§6Password must be at least %d characters long!",
   "text.heos.disallowedUsername": "§6Invalid username! Allowed pattern: %s",
+  "text.heos.usernamePatternSimple": "3-16 chars: letters, numbers, _, +, -, .",
+  "text.heos.usernamePatternExtended": "3-16 chars: letters, numbers, combining marks, _, +, -, .",
   "text.heos.playerAlreadyOnline": "§cPlayer %s is already online!",
   "text.heos.userNotRegistered": "§cThis player is not registered!",
   "text.heos.onlinePlayerLogin": "§aYou are using an online account. No login required.",
+  "text.heos.authServiceUnavailable": "§cPremium authentication is temporarily unavailable.\nPlease try again later.",
+  "text.heos.loginFailureLock": "§cToo many failed login attempts.\nPlease try again in %d seconds.",
   "text.heos.updateSuppressionCrash": "§cUpdate suppression happened at %s",
   "text.heos.unknownPosition": "unknown position",
   "text.heos.whitelistKick": "You are not on the whitelist.",
   "text.heos.whitelistDeniedLog": "Player is not on the whitelist: %s",
-  "text.heos.banMessage": "You have been banned\nReason: %s\nExpires: %s",
-  "text.heos.banIpMessage": "Your IP has been banned\nReason: %s\nExpires: %s"
+  "text.heos.banMessage": "You have been banned\n\nReason: %s\nExpires: %s",
+  "text.heos.banIpMessage": "Your IP has been banned\n\nReason: %s\nExpires: %s"
 }

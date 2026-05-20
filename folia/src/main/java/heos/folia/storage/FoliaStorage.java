@@ -61,13 +61,39 @@ public final class FoliaStorage {
     }
 
     public synchronized FoliaPlayerData load(String username) {
+        return load(username, false, false);
+    }
+
+    public synchronized FoliaPlayerData load(String username, boolean onlineAccount, boolean separateAccounts) {
         initialize();
+        String key = cacheKey(username, onlineAccount, separateAccounts);
+        FoliaPlayerData data = loadByKey(username, key);
+        if (data != null) {
+            data.storageKey = key;
+            return data;
+        }
+
+        if (separateAccounts) {
+            FoliaPlayerData legacyData = loadByKey(username, username.toLowerCase(Locale.ENGLISH));
+            if (legacyData != null && legacyData.isOnlineAccount == onlineAccount) {
+                legacyData.storageKey = key;
+                return legacyData;
+            }
+        }
+
+        FoliaPlayerData emptyData = new FoliaPlayerData(username);
+        emptyData.isOnlineAccount = onlineAccount;
+        emptyData.storageKey = key;
+        return emptyData;
+    }
+
+    private FoliaPlayerData loadByKey(String username, String key) {
         try (PreparedStatement statement = connection.prepareStatement(
                 "SELECT username, uuid, last_ip, data FROM " + TABLE + " WHERE username_lower = ?")) {
-            statement.setString(1, username.toLowerCase(Locale.ENGLISH));
+            statement.setString(1, key);
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (!resultSet.next()) {
-                    return new FoliaPlayerData(username);
+                    return null;
                 }
                 FoliaPlayerData data = GSON.fromJson(decrypt(resultSet.getString("data")), FoliaPlayerData.class);
                 if (data == null) {
@@ -78,7 +104,7 @@ public final class FoliaStorage {
             }
         } catch (Exception exception) {
             LOGGER.warning("Failed to load player data for " + username + ": " + exception.getMessage());
-            return new FoliaPlayerData(username);
+            return null;
         }
     }
 
@@ -88,7 +114,7 @@ public final class FoliaStorage {
                 "INSERT INTO " + TABLE + " (username, username_lower, uuid, last_ip, data) VALUES (?, ?, ?, ?, ?) "
                         + "ON CONFLICT(username_lower) DO UPDATE SET username = excluded.username, uuid = excluded.uuid, last_ip = excluded.last_ip, data = excluded.data")) {
             statement.setString(1, data.username);
-            statement.setString(2, data.username.toLowerCase(Locale.ENGLISH));
+            statement.setString(2, storageKey(data));
             statement.setString(3, data.uuid == null ? null : data.uuid.toString());
             statement.setString(4, data.lastIp);
             statement.setString(5, encrypt(GSON.toJson(data)));
@@ -101,8 +127,10 @@ public final class FoliaStorage {
     public synchronized boolean exists(String username) {
         initialize();
         try (PreparedStatement statement = connection.prepareStatement(
-                "SELECT 1 FROM " + TABLE + " WHERE username_lower = ? LIMIT 1")) {
+                "SELECT 1 FROM " + TABLE + " WHERE username_lower IN (?, ?, ?) LIMIT 1")) {
             statement.setString(1, username.toLowerCase(Locale.ENGLISH));
+            statement.setString(2, cacheKey(username, true, true));
+            statement.setString(3, cacheKey(username, false, true));
             try (ResultSet resultSet = statement.executeQuery()) {
                 return resultSet.next();
             }
@@ -115,8 +143,10 @@ public final class FoliaStorage {
     public synchronized boolean delete(String username) {
         initialize();
         try (PreparedStatement statement = connection.prepareStatement(
-                "DELETE FROM " + TABLE + " WHERE username_lower = ?")) {
+                "DELETE FROM " + TABLE + " WHERE username_lower IN (?, ?, ?)")) {
             statement.setString(1, username.toLowerCase(Locale.ENGLISH));
+            statement.setString(2, cacheKey(username, true, true));
+            statement.setString(3, cacheKey(username, false, true));
             return statement.executeUpdate() > 0;
         } catch (Exception exception) {
             LOGGER.warning("Failed to delete player data for " + username + ": " + exception.getMessage());
@@ -192,5 +222,20 @@ public final class FoliaStorage {
         Files.write(keyPath, keyBytes);
         key = new SecretKeySpec(keyBytes, "AES");
         return key;
+    }
+
+    public static String cacheKey(String username, boolean onlineAccount, boolean separateAccounts) {
+        String normalized = username.toLowerCase(Locale.ENGLISH);
+        if (!separateAccounts) {
+            return normalized;
+        }
+        return (onlineAccount ? "online:" : "offline:") + normalized;
+    }
+
+    private String storageKey(FoliaPlayerData data) {
+        if (data.storageKey == null || data.storageKey.isEmpty()) {
+            data.storageKey = cacheKey(data.username, data.isOnlineAccount, false);
+        }
+        return data.storageKey;
     }
 }
