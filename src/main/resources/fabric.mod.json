@@ -13,7 +13,7 @@
     "issues": "${mod_issues}"
   },
   "license": "${mod_license}",
-  "environment": "*",
+  "environment": "server",
   "entrypoints": {
     "main": [
       "heos.HeosFabric"

@@ -1,6 +1,7 @@
 package heos.folia.commands;
 
 import heos.folia.storage.FoliaBanData;
+import heos.folia.utils.FoliaDisconnects;
 import heos.folia.utils.FoliaMessages;
 import heos.folia.utils.FoliaPlayerAccess;
 import heos.folia.utils.FoliaTimeParser;
@@ -71,7 +72,7 @@ public final class FoliaBanCommands implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.GRAY + "Duration: " + FoliaTimeParser.formatDuration(parsed.expiryTime));
 
         if (target != null) {
-            target.kickPlayer(banMessage(parsed.reason, parsed.expiryTime));
+            FoliaDisconnects.disconnect(target, banMessage(parsed.reason, parsed.expiryTime), "HEOS_BAN");
         }
         return true;
     }
@@ -94,7 +95,7 @@ public final class FoliaBanCommands implements CommandExecutor, TabCompleter {
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (ip.equals(FoliaPlayerAccess.ip(player))) {
-                player.kickPlayer(banIpMessage(parsed.reason, parsed.expiryTime));
+                FoliaDisconnects.disconnect(player, banIpMessage(parsed.reason, parsed.expiryTime), "HEOS_IP_BAN");
             }
         }
         return true;

@@ -40,7 +40,7 @@ public final class FoliaMessages {
     }
 
     public static String translate(String key) {
-        String language = plugin == null ? DEFAULT_LANGUAGE : plugin.getConfig().getString("language", DEFAULT_LANGUAGE);
+        String language = currentLanguage();
         Map<String, String> current = loadLanguage(language);
         if (current.containsKey(key)) {
             return current.get(key);
@@ -57,10 +57,16 @@ public final class FoliaMessages {
     }
 
     public static String offlineNameHint() {
+        if (isChinese()) {
+            return "\u00a76\u7528\u6237\u540d\u65e0\u6548\n\u5141\u8bb8\u7684\u683c\u5f0f\n" + allowedUsernamePattern();
+        }
         return translate("text.heos.disallowedUsername").formatted(allowedUsernamePattern());
     }
 
     public static String invalidOfflineNameLog() {
+        if (isChinese()) {
+            return "\u00a76\u7528\u6237\u540d\u65e0\u6548\uff0c\u5141\u8bb8\u7684\u683c\u5f0f\uff1a" + allowedUsernamePattern();
+        }
         return translate("text.heos.disallowedUsername").formatted(allowedUsernamePattern());
     }
 
@@ -150,6 +156,9 @@ public final class FoliaMessages {
     }
 
     public static String loginFailureLock(long seconds) {
+        if (isChinese()) {
+            return "\u00a7c\u767b\u5f55\u5931\u8d25\u6b21\u6570\u8fc7\u591a\n\u8bf7\u7a0d\u540e\u91cd\u8bd5\n" + seconds + " s";
+        }
         return translate("text.heos.loginFailureLock").formatted(seconds);
     }
 
@@ -158,10 +167,16 @@ public final class FoliaMessages {
     }
 
     public static String banMessage(String reason, String expiry) {
+        if (isChinese()) {
+            return "\u4f60\u5df2\u88ab\u5c01\u7981\n" + reason + "\n" + expiry;
+        }
         return translate("text.heos.banMessage").formatted(reason, expiry);
     }
 
     public static String banIpMessage(String reason, String expiry) {
+        if (isChinese()) {
+            return "\u4f60\u7684 IP \u5df2\u88ab\u5c01\u7981\n" + reason + "\n" + expiry;
+        }
         return translate("text.heos.banIpMessage").formatted(reason, expiry);
     }
 
@@ -174,5 +189,13 @@ public final class FoliaMessages {
             return translate("text.heos.usernamePatternExtended");
         }
         return translate("text.heos.usernamePatternSimple");
+    }
+
+    private static String currentLanguage() {
+        return plugin == null ? DEFAULT_LANGUAGE : plugin.getConfig().getString("language", DEFAULT_LANGUAGE);
+    }
+
+    private static boolean isChinese() {
+        return "zh_cn".equalsIgnoreCase(currentLanguage());
     }
 }

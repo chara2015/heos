@@ -1484,6 +1484,547 @@ body.app-revealing .theme-toggle{
 
 
 
+
+
+/* Multi-device responsive pass: desktop / laptop / tablet / phone / short screens */
+@media (min-width:1400px){
+  :root{
+    --sidebar-expanded:236px;
+    --sidebar-collapsed:70px;
+    --content-max:1040px;
+    --main-pad-y:clamp(38px,4vw,64px);
+    --main-pad-x:clamp(72px,6.5vw,112px);
+  }
+  .card{ min-height:88px; padding:22px 25px; }
+  .drawer{ width:min(460px,88vw); }
+}
+
+@media (max-width:1180px){
+  :root{
+    --sidebar-expanded:204px;
+    --content-max:860px;
+    --main-pad-x:clamp(28px,4vw,48px);
+  }
+  .header{ padding-right:154px; }
+  .left h2{ font-size:clamp(20px,2.25vw,24px); }
+}
+
+@media (max-width:980px){
+  :root{
+    --sidebar-expanded:188px;
+    --sidebar-collapsed:60px;
+    --content-max:760px;
+    --main-pad-y:clamp(22px,3.6vw,36px);
+    --main-pad-x:clamp(20px,3.5vw,34px);
+    --theme-btn-size:44px;
+  }
+  .sidebar{ padding:20px 14px; }
+  .app.sidebar-collapsed .sidebar{ padding:20px 7px; }
+  .logo{ margin-bottom:26px; }
+  .nav{ gap:8px; }
+  .nav-item,.nav-indicator{ min-height:44px; height:44px; border-radius:15px; }
+  .app.sidebar-collapsed .nav-indicator,
+  .app.sidebar-collapsed .nav-item,
+  .app.sidebar-collapsed .logo{ width:44px; }
+  .header{ padding-right:142px; margin-bottom:22px; }
+  .header h1{ font-size:clamp(32px,5.4vw,44px); }
+  .cards{ gap:12px; }
+  .card{ border-radius:20px; padding:18px 19px; gap:16px; }
+  .meta{ gap:9px; }
+  .detail-hint{ display:none; }
+}
+
+@media (max-width:820px){
+  body{ overflow:hidden; }
+  .app{ align-items:stretch; }
+  .sidebar,
+  .app.sidebar-collapsed .sidebar{
+    width:62px;
+    flex-basis:62px;
+    padding:
+      calc(18px + env(safe-area-inset-top))
+      8px
+      calc(18px + env(safe-area-inset-bottom));
+  }
+  .app:not(.sidebar-collapsed) .sidebar{
+    width:188px;
+    flex-basis:188px;
+    padding:
+      calc(18px + env(safe-area-inset-top))
+      12px
+      calc(18px + env(safe-area-inset-bottom));
+  }
+  .main{
+    padding:
+      calc(22px + env(safe-area-inset-top))
+      calc(18px + env(safe-area-inset-right))
+      calc(86px + env(safe-area-inset-bottom))
+      calc(18px + env(safe-area-inset-left));
+  }
+  .top-row{
+    align-items:flex-start;
+    gap:14px;
+  }
+  .header{
+    padding-right:0;
+    max-width:var(--content-max);
+  }
+  .app.sidebar-collapsed .header,
+  .app.sidebar-collapsed .cards{
+    max-width:var(--content-max);
+  }
+  .lang-switch{
+    position:relative;
+    top:auto;
+    right:auto;
+    z-index:12;
+    flex:0 0 auto;
+  }
+  .kicker{ display:none; }
+  .drawer{
+    top:auto;
+    bottom:0;
+    right:0;
+    left:0;
+    width:100vw;
+    height:auto;
+    max-height:min(86dvh,720px);
+    border-left:none;
+    border-top:1px solid var(--line);
+    border-radius:24px 24px 0 0;
+    transform:translateY(105%);
+    padding:
+      24px
+      calc(20px + env(safe-area-inset-right))
+      calc(24px + env(safe-area-inset-bottom))
+      calc(20px + env(safe-area-inset-left));
+  }
+  .drawer.open{ transform:translateY(0); }
+}
+
+@media (max-width:640px){
+  .app{
+    display:grid;
+    grid-template-rows:1fr auto;
+    grid-template-columns:1fr;
+  }
+  .sidebar,
+  .app:not(.sidebar-collapsed) .sidebar,
+  .app.sidebar-collapsed .sidebar{
+    order:2;
+    width:100%;
+    height:auto;
+    flex-basis:auto;
+    padding:
+      8px
+      calc(10px + env(safe-area-inset-right))
+      calc(8px + env(safe-area-inset-bottom))
+      calc(10px + env(safe-area-inset-left));
+    border-top:1px solid var(--line);
+    background:rgba(255,255,255,.78);
+  }
+  html[data-theme="dark"] .sidebar,
+  html[data-theme="dark"] .app.sidebar-collapsed .sidebar{
+    background:rgba(24,25,29,.82);
+  }
+  .sidebar::after{ display:none; }
+  .logo{ display:none; }
+  .nav{
+    width:100%;
+    display:grid;
+    grid-template-columns:repeat(6, minmax(0,1fr));
+    gap:6px;
+  }
+  .nav-indicator{
+    width:calc((100% - 30px) / 6);
+    height:42px;
+    border-radius:15px;
+    transform:translateX(var(--indicator-x,0px));
+  }
+  .app.sidebar-collapsed .nav-indicator{
+    left:0;
+    width:calc((100% - 30px) / 6);
+    transform:translateX(var(--indicator-x,0px));
+  }
+  .nav-item,
+  .app:not(.sidebar-collapsed) .nav-item,
+  .app.sidebar-collapsed .nav-item{
+    width:100%;
+    min-height:42px;
+    height:42px;
+    margin:0;
+    padding:0;
+    justify-content:center;
+    border-radius:15px;
+    font-size:13px;
+  }
+  .nav-rest,
+  .app.sidebar-collapsed .nav-rest{ display:none; }
+  .nav-letter,
+  body[data-locale="zh_cn"] .app.sidebar-collapsed .nav-letter,
+  .app.sidebar-collapsed .nav-letter{
+    transform:none;
+    min-width:auto;
+  }
+  .main{
+    order:1;
+    padding:
+      calc(18px + env(safe-area-inset-top))
+      calc(14px + env(safe-area-inset-right))
+      18px
+      calc(14px + env(safe-area-inset-left));
+  }
+  .top-row{
+    flex-direction:column;
+    align-items:stretch;
+    gap:12px;
+  }
+  .lang-switch{ align-self:flex-start; }
+  .header h1{ font-size:clamp(30px,10vw,38px); }
+  .header p{ max-width:none; }
+  .card{
+    min-height:74px;
+    padding:16px;
+    gap:13px;
+  }
+  .left span{ font-size:13px; }
+  .toggle{ width:48px; height:28px; }
+  .toggle::after{ width:20px; height:20px; }
+  .toggle.on::after{ transform:translateX(20px); }
+  .theme-toggle{
+    right:calc(14px + env(safe-area-inset-right));
+    bottom:calc(74px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width:480px){
+  .main{
+    padding:
+      calc(16px + env(safe-area-inset-top))
+      calc(12px + env(safe-area-inset-right))
+      16px
+      calc(12px + env(safe-area-inset-left));
+  }
+  .header{ margin-bottom:16px; }
+  .lang-switch{ transform-origin:left top; }
+  .lang-indicator{ width:45px; height:30px; }
+  .lang-btn{ min-width:45px; height:30px; padding:0 9px; font-size:12px; }
+  .cards{ gap:10px; }
+  .card{
+    border-radius:18px;
+    padding:15px 14px;
+    min-height:70px;
+  }
+  .left h2{ font-size:20px; }
+  .meta{ gap:8px; }
+  .drawer{
+    max-height:88dvh;
+    border-radius:22px 22px 0 0;
+    padding:
+      22px
+      calc(16px + env(safe-area-inset-right))
+      calc(22px + env(safe-area-inset-bottom))
+      calc(16px + env(safe-area-inset-left));
+  }
+  .drawer h2{ font-size:26px; }
+  .drawer-head{ margin-bottom:18px; }
+  .field input,
+  .field textarea,
+  .field select,
+  .select-trigger{ min-height:46px; font-size:14px; }
+}
+
+@media (max-width:380px){
+  .header h1{ font-size:28px; }
+  .header p{ font-size:12.5px; line-height:1.48; }
+  .nav{ gap:4px; }
+  .nav-indicator,
+  .app.sidebar-collapsed .nav-indicator{ width:calc((100% - 20px) / 6); }
+  .nav-item,
+  .app:not(.sidebar-collapsed) .nav-item,
+  .app.sidebar-collapsed .nav-item{ height:39px; min-height:39px; border-radius:14px; font-size:12px; }
+  .card{ padding:13px; }
+  .left h2{ font-size:18px; }
+  .left span{ font-size:12.5px; }
+  .toggle{ width:44px; height:26px; }
+  .toggle::after{ width:18px; height:18px; }
+  .toggle.on::after{ transform:translateX(18px); }
+  .theme-toggle{ width:40px; height:40px; }
+}
+
+@media (max-height:620px) and (min-width:641px){
+  .main{ padding-top:18px; padding-bottom:18px; }
+  .header{ margin-bottom:14px; }
+  .header h1{ font-size:32px; margin-bottom:8px; }
+  .header p{ display:none; }
+  .sidebar{ padding-top:16px; }
+  .logo{ height:40px; margin-bottom:18px; }
+  .nav{ gap:6px; }
+  .nav-item,.nav-indicator{ min-height:40px; height:40px; }
+  .card{ min-height:66px; padding:13px 16px; }
+  .drawer{ padding-top:18px; }
+}
+
+@media (orientation:landscape) and (max-height:520px) and (max-width:920px){
+  .main{ padding-bottom:16px; }
+  .cards{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .card{ min-height:64px; }
+  .drawer{ max-height:94dvh; }
+  .theme-toggle{ bottom:calc(14px + env(safe-area-inset-bottom)); }
+}
+
+@media (hover:none) and (pointer:coarse){
+  .card:hover,
+  .nav-item:hover,
+  .lang-btn:hover,
+  .theme-toggle:hover,
+  .close:hover{
+    transform:none;
+  }
+  .card.has-detail .chevron{
+    display:grid;
+    opacity:.72;
+    transform:none;
+  }
+}
+
+
+/* User-requested layout fix: modules always stack vertically.
+   Even on landscape / tablet widths, cards should not merge into two columns. */
+.cards{
+  display:flex !important;
+  flex-direction:column !important;
+}
+.card{
+  width:100%;
+}
+@media (orientation:landscape) and (max-height:520px) and (max-width:920px){
+  .cards{
+    display:flex !important;
+    flex-direction:column !important;
+  }
+}
+
+/* Extra-large and ultra-wide screens: keep the same vertical rhythm,
+   but let the panel breathe instead of staying laptop-sized. */
+@media (min-width:1600px){
+  :root{
+    --sidebar-expanded:252px;
+    --sidebar-collapsed:76px;
+    --content-max:1220px;
+    --main-pad-y:clamp(48px,4vw,82px);
+    --main-pad-x:clamp(96px,7vw,152px);
+    --theme-btn-size:50px;
+  }
+  .header h1{ font-size:clamp(52px,3.3vw,68px); }
+  .header p{ max-width:760px; font-size:15px; }
+  .cards{ gap:16px; }
+  .card{ min-height:94px; padding:24px 28px; border-radius:25px; }
+  .left h2{ font-size:clamp(24px,1.55vw,30px); }
+  .left span{ font-size:14.5px; }
+  .drawer{ width:min(500px,84vw); }
+}
+
+@media (min-width:2200px){
+  :root{
+    --sidebar-expanded:278px;
+    --sidebar-collapsed:84px;
+    --content-max:1480px;
+    --main-pad-y:clamp(64px,4vw,112px);
+    --main-pad-x:clamp(140px,8vw,240px);
+    --theme-btn-size:54px;
+  }
+  .logo{ height:52px; font-size:29px; margin-bottom:38px; }
+  .nav{ gap:11px; }
+  .nav-item,.nav-indicator{ min-height:52px; height:52px; border-radius:18px; font-size:16px; }
+  .header{ margin-bottom:32px; }
+  .header h1{ font-size:clamp(64px,3vw,82px); }
+  .header p{ max-width:900px; font-size:16px; }
+  .cards{ gap:18px; }
+  .card{ min-height:104px; padding:28px 32px; border-radius:28px; }
+  .left h2{ font-size:clamp(28px,1.35vw,36px); }
+  .left span{ font-size:15.5px; }
+  .toggle{ width:58px; height:34px; }
+  .toggle::after{ width:26px; height:26px; }
+  .toggle.on::after{ transform:translateX(24px); }
+}
+
+
+/* 4K / 8K guard: scale calmly and avoid ultra-long lines. */
+@media (min-width:2560px){
+  :root{
+    --content-max:1680px;
+    --main-pad-x:clamp(170px,8vw,360px);
+    --main-pad-y:clamp(78px,4vw,132px);
+  }
+}
+
+@media (min-width:3840px){
+  :root{
+    --sidebar-expanded:320px;
+    --sidebar-collapsed:96px;
+    --content-max:1840px;
+    --main-pad-x:clamp(220px,8vw,560px);
+    --main-pad-y:clamp(96px,4vw,168px);
+    --theme-btn-size:60px;
+  }
+  .header h1{ font-size:clamp(78px,2.4vw,104px); }
+  .header p{ max-width:1040px; font-size:17px; }
+  .cards{ gap:20px; }
+  .card{ min-height:112px; padding:30px 36px; }
+}
+
+@media (min-width:6000px){
+  :root{
+    --content-max:1920px;
+    --main-pad-x:clamp(320px,9vw,900px);
+    --main-pad-y:clamp(120px,4vw,220px);
+  }
+}
+
+
+/* Remove mobile browser tap highlight/blue square feedback while keeping keyboard focus-visible styles. */
+*,
+*::before,
+*::after{
+  -webkit-tap-highlight-color:transparent;
+}
+button,
+[role="button"],
+.nav-item,
+.card,
+.lang-btn,
+.theme-toggle,
+.close,
+.select-trigger,
+.select-option{
+  -webkit-tap-highlight-color:rgba(0,0,0,0);
+  touch-action:manipulation;
+}
+button,
+[role="button"]{
+  -webkit-touch-callout:none;
+}
+
+
+/* Checkbox fields should not inherit the text-input box style.
+   The real checkbox is visually hidden; the only visible control is this HEOS switch. */
+.field.checkbox-field{
+  position:relative;
+  min-height:46px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:14px;
+  cursor:pointer;
+  user-select:none;
+}
+.field.checkbox-field label{
+  line-height:1.25;
+  cursor:pointer;
+}
+.field.checkbox-field input[type="checkbox"]{
+  position:absolute;
+  inline-size:1px;
+  block-size:1px;
+  opacity:0;
+  pointer-events:none;
+  appearance:none;
+  -webkit-appearance:none;
+  margin:0;
+  padding:0;
+  border:0;
+}
+.heos-switch{
+  width:52px;
+  height:30px;
+  border-radius:999px;
+  background:#dedfe1;
+  position:relative;
+  flex:0 0 auto;
+  box-shadow:0 1px 2px rgba(0,0,0,.08) inset;
+  transition:background-color .24s ease, transform .18s var(--ease), box-shadow .18s ease;
+}
+.heos-switch::after{
+  content:"";
+  position:absolute;
+  left:4px;
+  top:4px;
+  width:22px;
+  height:22px;
+  border-radius:999px;
+  background:#fff;
+  box-shadow:0 2px 6px rgba(0,0,0,.16);
+  transform:translateX(0);
+  transition:transform .30s var(--ease), width .20s var(--ease), background-color .18s ease, box-shadow .18s ease;
+}
+.field.checkbox-field input[type="checkbox"]:checked + .heos-switch{
+  background:var(--black);
+}
+.field.checkbox-field input[type="checkbox"]:checked + .heos-switch::after{
+  transform:translateX(22px);
+}
+.field.checkbox-field:active .heos-switch{
+  transform:scale(.97);
+}
+.field.checkbox-field input[type="checkbox"]:focus-visible + .heos-switch{
+  box-shadow:0 0 0 3px rgba(17,18,20,.10), 0 1px 2px rgba(0,0,0,.08) inset;
+}
+html[data-theme="dark"] .heos-switch{
+  background:#383a42;
+}
+html[data-theme="dark"] .field.checkbox-field input[type="checkbox"]:checked + .heos-switch{
+  background:#f4f4f5;
+}
+html[data-theme="dark"] .field.checkbox-field input[type="checkbox"]:checked + .heos-switch::after{
+  background:#111214;
+}
+@media(max-width:420px){
+  .field.checkbox-field{
+    gap:12px;
+  }
+}
+
+
+
+/* Dark-mode mobile fix: the bottom navigation must not inherit the light frosted bar. */
+@media (max-width:640px){
+  html[data-theme="dark"] .sidebar,
+  html[data-theme="dark"] .app:not(.sidebar-collapsed) .sidebar,
+  html[data-theme="dark"] .app.sidebar-collapsed .sidebar{
+    background:rgba(14,15,18,.94) !important;
+    border-top-color:rgba(255,255,255,.09) !important;
+    box-shadow:0 -18px 48px rgba(0,0,0,.42) !important;
+    backdrop-filter:blur(22px) saturate(135%) !important;
+    -webkit-backdrop-filter:blur(22px) saturate(135%) !important;
+  }
+  html[data-theme="dark"] .nav-indicator{
+    background:#f4f4f5 !important;
+    box-shadow:0 10px 30px rgba(0,0,0,.46) !important;
+  }
+  html[data-theme="dark"] .nav-item{
+    color:rgba(244,244,245,.58) !important;
+  }
+  html[data-theme="dark"] .nav-item.active{
+    color:#111214 !important;
+  }
+  html[data-theme="dark"] .nav-item:not(.active):active{
+    background:rgba(255,255,255,.06);
+  }
+
+  /* Keep the dark page visibly continuous behind the fixed-looking mobile nav. */
+  html[data-theme="dark"] body{
+    background-color:#111214 !important;
+  }
+}
+
+/* Prevent long mobile descriptions from visually running into the card area. */
+@media (max-width:640px){
+  .header p{
+    overflow-wrap:anywhere;
+  }
+}
+
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{
     animation:none!important;
@@ -1491,8 +2032,51 @@ body.app-revealing .theme-toggle{
     scroll-behavior:auto!important;
   }
 }
+
+
+/* Mobile dark-mode top wash + theme button optical-centering fix. */
+@media (max-width:760px), (hover:none) and (pointer:coarse){
+  html[data-theme="dark"] body{
+    background:#111214 !important;
+  }
+  html[data-theme="dark"] .main,
+  html[data-theme="dark"] .app{
+    background:#111214 !important;
+  }
+
+  .theme-toggle{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    padding:0 !important;
+    line-height:1 !important;
+  }
+  .theme-orbit{
+    width:24px !important;
+    height:24px !important;
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+    transform:translateZ(0);
+  }
+  .theme-icon{
+    width:18px !important;
+    height:18px !important;
+    left:50% !important;
+    top:50% !important;
+    margin:0 !important;
+  }
+}
+
+@media (max-width:760px){
+  .theme-toggle{
+    width:52px !important;
+    height:52px !important;
+  }
+}
+
 </style>
-<script type="text/javascript" nonce="b5b61d1b43374c7cab4a1de3246" src="//injections.adguard.org?ts=1779264907117&amp;type=content-script&amp;dmn=chatgpt.com&amp;url=https%3A%2F%2Fchatgpt.com%2Fbackend-api%2Festuary%2Fcontent%3Fid%3Dfile_00000000f5d0720cbe7d5e2e8fd290f7%26ts%3D494240%26p%3Dfs%26cid%3D1%26sig%3D1ec943804239a7f7cea4afbfb76ec4624ad67eb0eae113ce8e978134da11a2a6%26v%3D0&amp;app=msedge.exe&amp;css=2&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1&amp;stealth=1&amp;st-loc&amp;st-dnt"></script><script type="text/javascript" nonce="b5b61d1b43374c7cab4a1de3246" src="//injections.adguard.org?ts=1779264907117&amp;name=AdGuard%20Extra&amp;name=AdGuard%20Popup%20Blocker&amp;type=user-script"></script><script type="text/javascript" nonce="b5b61d1b43374c7cab4a1de3246" src="//injections.adguard.org?ts=1779263411596&amp;type=content-script&amp;dmn=chatgpt.com&amp;url=https%3A%2F%2Fchatgpt.com%2Fbackend-api%2Festuary%2Fcontent%3Fid%3Dfile_000000009ac4720c8325f967bd11d283%26ts%3D494239%26p%3Dfs%26cid%3D1%26sig%3D72fda7dc2e24ce7b3ba099a758957592ca67acd35bd2497fee4a3a4bf7a51d5c%26v%3D0&amp;app=msedge.exe&amp;css=2&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1&amp;stealth=1&amp;st-loc&amp;st-dnt"></script><script type="text/javascript" nonce="b5b61d1b43374c7cab4a1de3246" src="//injections.adguard.org?ts=1779263411596&amp;name=AdGuard%20Extra&amp;name=AdGuard%20Popup%20Blocker&amp;type=user-script"></script><script type="text/javascript" nonce="b0b647ea44194c54b00e3bb069f" src="//injections.adguard.org?ts=1779261376245&amp;type=content-script&amp;dmn=chatgpt.com&amp;url=https%3A%2F%2Fchatgpt.com%2Fbackend-api%2Festuary%2Fcontent%3Fid%3Dfile_000000008a9871f5a9651c5695a81da1%26ts%3D494239%26p%3Dfs%26cid%3D1%26sig%3D5eab09ed00aabd7b432d6152348ff356727e1111595acb23b671e1ef62919382%26v%3D0&amp;app=msedge.exe&amp;css=2&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1&amp;stealth=1&amp;st-loc&amp;st-dnt"></script><script type="text/javascript" nonce="b0b647ea44194c54b00e3bb069f" src="//injections.adguard.org?ts=1779261376245&amp;name=AdGuard%20Extra&amp;name=AdGuard%20Popup%20Blocker&amp;type=user-script"></script></head>
+<script type="text/javascript" nonce="c32bec473c144d26bdae4a1eec0" src="//injections.adguard.org?ts=1779375712768&amp;type=content-script&amp;dmn=chatgpt.com&amp;url=https%3A%2F%2Fchatgpt.com%2Fbackend-api%2Festuary%2Fcontent%3Fid%3Dfile_00000000aaec71fd8b9e45cd29baadb6%26ts%3D494271%26p%3Dfs%26cid%3D1%26sig%3D3455a38fc564866fbfdd69b2a4f5a4853d36ad00b587a98c78e61024f8d119c3%26v%3D0&amp;app=msedge.exe&amp;css=2&amp;js=1&amp;rel=1&amp;rji=1&amp;sbe=1&amp;stealth=1&amp;st-loc&amp;st-dnt"></script><script type="text/javascript" nonce="c32bec473c144d26bdae4a1eec0" src="//injections.adguard.org?ts=1779375712768&amp;name=AdGuard%20Extra&amp;name=AdGuard%20Popup%20Blocker&amp;type=user-script"></script></head>
 <body class="booting">
 
 <div class="boot-intro" id="bootIntro" aria-hidden="true">
@@ -1775,17 +2359,44 @@ function setupBootIntro(){
   });
   window.addEventListener("resize", updateOShift, {passive:true});
 
-  window.setTimeout(() => {
+  let bootFinished = false;
+  let bootCleaned = false;
+
+  function revealApp(){
+    if(bootFinished) return;
+    bootFinished = true;
     document.body.classList.add("app-revealing");
     document.body.classList.remove("booting");
-  }, 5618);
+    requestAnimationFrame(() => {
+      updateIndicator();
+      updateLangIndicator();
+    });
+  }
 
-  window.setTimeout(() => {
+  function cleanupBoot(){
+    if(bootCleaned) return;
+    bootCleaned = true;
+    revealApp();
     window.removeEventListener("resize", updateOShift);
     intro.remove();
     document.body.classList.remove("app-revealing");
     document.documentElement.classList.remove("boot-theme-dark", "boot-theme-light");
-  }, 6472);
+  }
+
+  intro.addEventListener("animationend", event => {
+    if(event.animationName === "bootIntroExit") cleanupBoot();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if(!document.hidden && !bootCleaned){
+      const elapsed = performance.now();
+      if(elapsed > 6200) cleanupBoot();
+    }
+  }, {passive:true});
+
+  window.setTimeout(revealApp, 5618);
+  window.setTimeout(cleanupBoot, 6472);
+  window.setTimeout(cleanupBoot, 9000);
 }
 
 
@@ -2068,6 +2679,7 @@ function updateIndicator(){
   const active = nav.querySelector(".nav-item.active");
   if(!active) return;
   nav.style.setProperty("--indicator-y", `${active.offsetTop}px`);
+  nav.style.setProperty("--indicator-x", `${active.offsetLeft}px`);
   navIndicator.style.height = `${active.offsetHeight}px`;
 }
 
@@ -2186,8 +2798,29 @@ function openDetail(mod, keepState = false){
     }else{
       input = document.createElement("input");
       input.type = type;
-      input.value = value || "";
       input.name = key;
+      if(type === "checkbox"){
+        wrap.classList.add("checkbox-field");
+        input.checked = String(value).toLowerCase() === "true";
+        input.value = input.checked ? "true" : "false";
+        const switchVisual = document.createElement("span");
+        switchVisual.className = "heos-switch";
+        switchVisual.setAttribute("aria-hidden", "true");
+        const syncCheckboxValue = () => {
+          input.value = input.checked ? "true" : "false";
+        };
+        input.addEventListener("change", syncCheckboxValue);
+        wrap.addEventListener("click", (event) => {
+          if(event.target === input) return;
+          input.checked = !input.checked;
+          input.dispatchEvent(new Event("change", {bubbles:true}));
+        });
+        wrap.append(lab, input, switchVisual);
+        form.appendChild(wrap);
+        return;
+      }else{
+        input.value = value || "";
+      }
     }
     wrap.append(lab, input);
     form.appendChild(wrap);

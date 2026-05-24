@@ -3,6 +3,7 @@ package heos.folia.event;
 import heos.folia.commands.FoliaBanCommands;
 import heos.folia.storage.FoliaBanData;
 import heos.folia.storage.FoliaWhitelistData;
+import net.kyori.adventure.text.Component;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -24,7 +25,6 @@ import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.Plugin;
@@ -50,42 +50,43 @@ public final class FoliaAuthListener implements Listener {
         String username = event.getName();
         boolean allowMoreCharacters = plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true);
         if (!FoliaMojangApi.isValidMojangUsername(username) && !FoliaMojangApi.isAllowedOfflineUsername(username, allowMoreCharacters)) {
-            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, FoliaMessages.offlineNameHint());
-        }
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST)
-    void onLogin(PlayerLoginEvent event) {
-        if (!authService.areOfflinePlayersAllowed() && !isPremiumUuid(event.getPlayer())) {
-            plugin.getLogger().info("Offline player is not allowed: " + event.getPlayer().getName());
-            event.disallow(PlayerLoginEvent.Result.KICK_OTHER, FoliaMessages.offlineNameHint());
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, kickComponent(FoliaMessages.offlineNameHint()));
             return;
         }
-        if (plugin.getConfig().getBoolean("enableWhitelist", false) && !whitelistData.isWhitelisted(event.getPlayer().getName())) {
-            event.disallow(PlayerLoginEvent.Result.KICK_WHITELIST, FoliaMessages.whitelistKick());
-            plugin.getLogger().info(FoliaMessages.whitelistDeniedLog(event.getPlayer().getName()));
+        if (!authService.areOfflinePlayersAllowed() && !isPremiumUuid(username, event.getUniqueId())) {
+            plugin.getLogger().info("Offline player is not allowed: " + username);
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, kickComponent(FoliaMessages.offlineNameHint()));
+            return;
+        }
+        if (plugin.getConfig().getBoolean("enableWhitelist", false) && !whitelistData.isWhitelisted(username)) {
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_WHITELIST, kickComponent(FoliaMessages.whitelistKick()));
+            plugin.getLogger().info(FoliaMessages.whitelistDeniedLog(username));
             return;
         }
         if (plugin.getConfig().getBoolean("enableCustomBan", true)) {
-            FoliaBanData.BanEntry playerBan = banData.getPlayerBan(event.getPlayer().getName(), event.getPlayer().getUniqueId());
+            FoliaBanData.BanEntry playerBan = banData.getPlayerBan(username, event.getUniqueId());
             if (playerBan != null) {
                 if (FoliaMessages.isMigrationReason(playerBan.reason)) {
-                    plugin.getLogger().info(FoliaMessages.migrationBanAttemptLog(event.getPlayer().getName()));
+                    plugin.getLogger().info(FoliaMessages.migrationBanAttemptLog(username));
                 }
-                event.disallow(PlayerLoginEvent.Result.KICK_BANNED, FoliaMessages.banMessage(playerBan.reason, FoliaTimeParser.formatAbsolute(playerBan.expiryTime)));
+                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, kickComponent(FoliaMessages.banMessage(playerBan.reason, FoliaTimeParser.formatAbsolute(playerBan.expiryTime))));
                 return;
             }
             String ip = event.getAddress() == null ? "" : event.getAddress().getHostAddress();
             FoliaBanData.IpBanEntry ipBan = banData.getIpBan(ip);
             if (ipBan != null) {
-                event.disallow(PlayerLoginEvent.Result.KICK_BANNED, FoliaMessages.banIpMessage(ipBan.reason, FoliaTimeParser.formatAbsolute(ipBan.expiryTime)));
+                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, kickComponent(FoliaMessages.banIpMessage(ipBan.reason, FoliaTimeParser.formatAbsolute(ipBan.expiryTime))));
             }
         }
     }
 
-    private static boolean isPremiumUuid(Player player) {
-        java.util.UUID offline = java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + player.getName()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        return !player.getUniqueId().equals(offline);
+    private static boolean isPremiumUuid(String username, java.util.UUID uuid) {
+        java.util.UUID offline = java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return uuid != null && !uuid.equals(offline);
+    }
+
+    private static Component kickComponent(String message) {
+        return Component.text(message == null ? "" : message);
     }
 
     @EventHandler

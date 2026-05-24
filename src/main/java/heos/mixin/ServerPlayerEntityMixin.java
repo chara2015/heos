@@ -7,6 +7,7 @@ import heos.utils.HeosLogger;
 import heos.utils.Messages;
 import heos.utils.TpsDisplayService;
 import net.minecraft.core.BlockPos;
+import net.minecraft.SharedConstants;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
@@ -39,6 +40,12 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
     private String heos$ipAddress = "";
 
     @Unique
+    private Connection heos$connection = null;
+
+    @Unique
+    private int heos$clientProtocolVersion = SharedConstants.getProtocolVersion();
+
+    @Unique
     private PlayerData heos$playerData = null;
 
     @Unique
@@ -57,10 +64,19 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
             HeosLogger.debug("Player authenticated: " + player.getName().getString());
             heos$kickTimer = Heos.getConfig().loginTimeout * 20L;
             heos$onAuthenticated();
-            player.level().getServer().getCommands().sendCommands(player);
+            if (heos$isSameProtocol()) {
+                player.level().getServer().getCommands().sendCommands(player);
+            } else {
+                HeosLogger.debug("Skipped command tree refresh for cross-protocol player " + player.getName().getString());
+            }
 
             ServerLevel world = heos$getServerWorld(player);
             heos$clearNearbyMobTargets(player, world);
+            if (!heos$isSameProtocol()) {
+                HeosLogger.debug("Skipped post-auth block refresh for cross-protocol player " + player.getName().getString());
+                return;
+            }
+
             BlockPos pos = player.blockPosition();
             world.sendBlockUpdated(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
             world.sendBlockUpdated(pos.above(), world.getBlockState(pos.above()), world.getBlockState(pos.above()), 3);
@@ -115,8 +131,28 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
     }
 
     @Override
+    public void heos$setConnection(Connection connection) {
+        this.heos$connection = connection;
+    }
+
+    @Override
+    public Connection heos$getConnection() {
+        return this.heos$connection;
+    }
+
+    @Override
     public void heos$setIpAddress(String ipAddress) {
         this.heos$ipAddress = ipAddress;
+    }
+
+    @Override
+    public int heos$getClientProtocolVersion() {
+        return this.heos$clientProtocolVersion;
+    }
+
+    @Override
+    public void heos$setClientProtocolVersion(int protocolVersion) {
+        this.heos$clientProtocolVersion = protocolVersion;
     }
 
     @Override
@@ -226,6 +262,8 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
         newAuth.heos$setCanSkipAuth(oldAuth.heos$canSkipAuth());
         newAuth.heos$setUsingMojangAccount(oldAuth.heos$isUsingMojangAccount());
         newAuth.heos$setPlayerData(oldAuth.heos$getPlayerData());
+        newAuth.heos$setConnection(oldAuth.heos$getConnection());
         newAuth.heos$setIpAddress(oldAuth.heos$getIpAddress());
+        newAuth.heos$setClientProtocolVersion(oldAuth.heos$getClientProtocolVersion());
     }
 }

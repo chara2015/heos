@@ -1,6 +1,7 @@
 package heos.utils;
 
 import heos.Heos;
+import heos.interfaces.PlayerAuth;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundTabListPacket;
@@ -24,7 +25,12 @@ public final class TpsDisplayService {
         if (!Heos.getConfig().enableAutoLogTps) {
             return;
         }
-        ACTIVE.put(player.getUUID(), Math.max(1, Heos.getConfig().autoLogTpsDelayTicks));
+        UUID uuid = player.getUUID();
+        if (player instanceof PlayerAuth auth && !auth.heos$isSameProtocol()) {
+            ACTIVE.remove(uuid);
+            return;
+        }
+        ACTIVE.put(uuid, Math.max(1, Heos.getConfig().autoLogTpsDelayTicks));
     }
 
     public static void stop(ServerPlayer player) {
@@ -40,6 +46,10 @@ public final class TpsDisplayService {
             UUID uuid = entry.getKey();
             ServerPlayer player = server.getPlayerList().getPlayer(uuid);
             if (player == null) {
+                ACTIVE.remove(uuid);
+                continue;
+            }
+            if (player instanceof PlayerAuth auth && !auth.heos$isSameProtocol()) {
                 ACTIVE.remove(uuid);
                 continue;
             }

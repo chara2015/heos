@@ -35,7 +35,7 @@ public final class HeosFoliaPlugin extends JavaPlugin {
         this.banData = FoliaBanData.load(getDataFolder().toPath(), getLogger());
         this.whitelistData = FoliaWhitelistData.load(getDataFolder().toPath(), getLogger());
         this.tpsDisplayService = new FoliaTpsDisplayService(this);
-        this.usernameValidationBypassService = new FoliaLoginUsernameValidationBypassService(this);
+        this.usernameValidationBypassService = new FoliaLoginUsernameValidationBypassService(this, banData, whitelistData);
         usernameValidationBypassService.install();
 
         this.authService = new FoliaAuthService(this, storage, tpsDisplayService);

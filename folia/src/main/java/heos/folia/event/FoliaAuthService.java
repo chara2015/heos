@@ -3,6 +3,7 @@ package heos.folia.event;
 import heos.folia.storage.FoliaPlayerData;
 import heos.folia.storage.FoliaStorage;
 import heos.folia.utils.FoliaLoginFailureTracker;
+import heos.folia.utils.FoliaDisconnects;
 import heos.folia.utils.FoliaPasswordHasher;
 import heos.folia.utils.FoliaPlayerAccess;
 import heos.folia.utils.FoliaTpsDisplayService;
@@ -111,7 +112,7 @@ public final class FoliaAuthService {
         FoliaPlayerData data = session.data;
         String ip = FoliaPlayerAccess.ip(player);
         if (failureTracker.isBlocked(player.getName(), ip)) {
-            player.kickPlayer(failureTracker.blockMessage(player.getName(), ip));
+            FoliaDisconnects.disconnect(player, failureTracker.blockMessage(player.getName(), ip), "HEOS_LOGIN_FAILURE_LOCK");
             return;
         }
         if (!data.isRegistered()) {
@@ -120,7 +121,7 @@ public final class FoliaAuthService {
         }
         if (!FoliaPasswordHasher.verifyPassword(password, data.passwordHash)) {
             if (failureTracker.recordFailure(player.getName(), ip)) {
-                player.kickPlayer(failureTracker.blockMessage(player.getName(), ip));
+                FoliaDisconnects.disconnect(player, failureTracker.blockMessage(player.getName(), ip), "HEOS_LOGIN_FAILURE_LOCK");
                 return;
             }
             player.sendMessage(ChatColor.RED + FoliaMessages.wrongPassword());
@@ -212,7 +213,7 @@ public final class FoliaAuthService {
         int timeoutSeconds = Math.max(1, plugin.getConfig().getInt("loginTimeout", 60));
         player.getScheduler().runDelayed(plugin, task -> {
             if (player.isOnline() && shouldBlock(player)) {
-                player.kickPlayer(FoliaMessages.loginTimeout());
+                FoliaDisconnects.disconnect(player, FoliaMessages.loginTimeout(), "HEOS_LOGIN_TIMEOUT");
             }
         }, null, timeoutSeconds * 20L);
     }
@@ -246,7 +247,11 @@ public final class FoliaAuthService {
         int limit = plugin.getConfig().getInt("maxConcurrentSessionsPerIp", -1);
         String ip = FoliaPlayerAccess.ip(player);
         if (limit >= 0 && authenticatedSessionsByIp.getOrDefault(ip, 0) >= limit) {
-            player.kickPlayer(plugin.getConfig().getString("sessionLimitKickMessage", "The online session limit for this IP has been reached"));
+            FoliaDisconnects.disconnect(
+                    player,
+                    plugin.getConfig().getString("sessionLimitKickMessage", "The online session limit for this IP has been reached"),
+                    "HEOS_SESSION_LIMIT"
+            );
             return false;
         }
         session.ip = ip;

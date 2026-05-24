@@ -3,6 +3,7 @@ package heos.folia.commands;
 import heos.folia.storage.FoliaBanData;
 import heos.folia.storage.FoliaPlayerData;
 import heos.folia.storage.FoliaStorage;
+import heos.folia.utils.FoliaDisconnects;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
@@ -118,10 +119,10 @@ public final class FoliaMigrationCommands {
         Player sourceOnline = Bukkit.getPlayerExact(migration.sourceUsername);
         Player targetOnline = Bukkit.getPlayerExact(migration.targetUsername);
         if (sourceOnline != null) {
-            sourceOnline.kickPlayer("Your data is being migrated to another account. Please log in again later");
+            FoliaDisconnects.disconnect(sourceOnline, "Your data is being migrated to another account. Please log in again later", "HEOS_MIGRATION_SOURCE");
         }
         if (targetOnline != null) {
-            targetOnline.kickPlayer("Data is being migrated to your account. Please log in again later");
+            FoliaDisconnects.disconnect(targetOnline, "Data is being migrated to your account. Please log in again later", "HEOS_MIGRATION_TARGET");
         }
 
         Set<UUID> sourceUuids = collectPlayerUuids(migration.sourceUsername);

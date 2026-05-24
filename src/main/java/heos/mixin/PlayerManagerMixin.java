@@ -3,10 +3,12 @@ package heos.mixin;
 import com.mojang.authlib.GameProfile;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import heos.Heos;
+import heos.interfaces.ConnectionProtocolInfo;
 import heos.interfaces.PlayerAuth;
 import heos.storage.PlayerData;
 import heos.utils.HeosLogger;
 import heos.utils.Messages;
+import heos.utils.ProtocolCompatibility;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
@@ -56,7 +58,7 @@ public abstract class PlayerManagerMixin {
 
         boolean onlineSession = heos$isVerifiedOnlineSession(player, username);
         PlayerData storedData = Heos.getPlayerData(username, onlineSession);
-        heos$prepareSession(authState, connection, storedData);
+        heos$prepareSession(authState, connection, storedData, username);
         if (heos$exceedsIpSessionLimit(player)) {
             player.connection.disconnect(Component.literal(Heos.getConfig().sessionLimitKickMessage));
             return;
@@ -128,9 +130,16 @@ public abstract class PlayerManagerMixin {
         return sessions > maxSessions;
     }
 
-    private void heos$prepareSession(PlayerAuth authState, Connection connection, PlayerData storedData) {
+    private void heos$prepareSession(PlayerAuth authState, Connection connection, PlayerData storedData, String username) {
         authState.heos$setPlayerData(storedData);
+        authState.heos$setConnection(connection);
         authState.heos$setIpAddress(connection);
+        ConnectionProtocolInfo connectionInfo = (ConnectionProtocolInfo) connection;
+        int handshakeProtocol = connectionInfo.heos$getClientProtocolVersion();
+        int resolvedProtocol = ProtocolCompatibility.resolveClientProtocol((ServerPlayer) authState, handshakeProtocol);
+        authState.heos$setClientProtocolVersion(resolvedProtocol);
+        connectionInfo.heos$setClientProtocolVersion(resolvedProtocol);
+        connectionInfo.heos$setDebugPlayerName(username);
     }
 
     private boolean heos$isSyntheticPlayer(ServerPlayer player) {
@@ -156,7 +165,11 @@ public abstract class PlayerManagerMixin {
         heos$syncIdentity(storedData, true, player.getUUID());
         heos$markAuthenticationState(authState, true, true, true);
         HeosLogger.info("Premium player " + username + " joined, authentication skipped");
-        player.sendSystemMessage(Component.literal(Messages.premiumWelcome()), false);
+        if (authState.heos$isSameProtocol()) {
+            player.sendSystemMessage(Component.literal(Messages.premiumWelcome()), false);
+        } else {
+            HeosLogger.debug("Skipped premium welcome message for cross-protocol player " + username);
+        }
     }
 
     private void heos$requirePasswordLogin(ServerPlayer player, PlayerAuth authState, PlayerData storedData, String username) {

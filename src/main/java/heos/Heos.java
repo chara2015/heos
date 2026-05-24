@@ -100,6 +100,7 @@ public class Heos {
         HeosLogger.info("Authentication: " + (config.enableAuthentication ? "Enabled" : "Disabled"));
         HeosLogger.info("Whitelist: " + (config.enableWhitelist ? "Enabled" : "Disabled"));
         HeosLogger.info("Custom Ban: " + (config.enableCustomBan ? "Enabled" : "Disabled"));
+        HeosLogger.info("Recipe viewer sync: " + (config.enableRecipeViewerSync ? "Enabled" : "Disabled"));
         HeosLogger.info("日志过滤: " + (config.enableLogFilter ? "Enabled" : "Disabled"));
     }
 

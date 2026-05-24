@@ -7,6 +7,7 @@ import heos.commands.LoginCommand;
 import heos.commands.RegisterCommand;
 import heos.event.AuthEventHandler;
 import heos.integrations.RecipeSyncFeature;
+import heos.integrations.ViaVersionDetailsFeature;
 import heos.utils.HeosLogger;
 import heos.utils.LogFilterService;
 import net.fabricmc.api.EnvType;
@@ -37,13 +38,14 @@ public class HeosFabric implements ModInitializer {
     @Override
     public void onInitialize() {
         Heos.gameDirectory = FabricLoader.getInstance().getGameDir();
-        RecipeSyncFeature.initialize();
 
         if (FabricLoader.getInstance().getEnvironmentType() == EnvType.CLIENT) {
             HeosLogger.info("Initialized Heos client compatibility features");
             return;
         }
 
+        RecipeSyncFeature.initialize();
+        ViaVersionDetailsFeature.initialize();
         LogFilterService.installConfiguredFilters();
         logStartupContext();
         installCommandCallbacks();

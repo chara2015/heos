@@ -35,7 +35,13 @@ public class HeosConfig {
             "passwordPolicy",
             "whitelistNotify",
             "sessionReuseCheck",
-            "strictNameCheck"
+            "strictNameCheck",
+            "allowCrossProtocolPlayers",
+            "crossProtocolKickMessage",
+            "enableDiagnosticLogging",
+            "diagnosticTpsLogDelayTicks",
+            "enableCrossProtocolPacketTrace",
+            "crossProtocolPacketTraceLimitPerSecond"
     };
 
     @SerializedName("_comments")
@@ -73,6 +79,7 @@ public class HeosConfig {
     public int autoLogTpsDelayTicks = 20;
     @SerializedName("\u65e5\u5fd7\u8fc7\u6ee4")
     public boolean enableLogFilter = true;
+    public boolean enableRecipeViewerSync = true;
 
     // Ban settings
     public boolean enableCustomBan = false;
@@ -184,6 +191,7 @@ public class HeosConfig {
         comments.put("autoLogTpsDelayTicks", "TPS 信息刷新间隔，单位为 tick。20 tick 约等于 1 秒。");
         comments.put("日志过滤", "是否启用日志过滤，隐藏登录、注册、改密等敏感命令内容。");
         comments.put("enableCustomBan", "是否启用 Heos 自带封禁系统和封禁命令。");
+        comments.put("enableRecipeViewerSync", "Enable JEI and REI recipe viewer sync for joined players.");
         return comments;
     }
 }

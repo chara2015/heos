@@ -32,6 +32,7 @@ subprojects {
 
     dependencies {
         "compileOnly"("dev.folia:folia-api:${project.name}-R0.1-SNAPSHOT")
+        nettyCompileOnly("netty-buffer", "4.1.118.Final")
         nettyCompileOnly("netty-common", "4.1.118.Final")
         nettyCompileOnly("netty-transport", "4.1.118.Final")
         "compileOnly"("org.apache.logging.log4j:log4j-core:2.24.3")

@@ -1,6 +1,7 @@
 package heos.interfaces;
 
 import heos.storage.PlayerData;
+import net.minecraft.SharedConstants;
 import net.minecraft.network.Connection;
 
 /**
@@ -47,11 +48,29 @@ public interface PlayerAuth {
      * Sets the player's IP address from connection
      */
     void heos$setIpAddress(Connection connection);
+
+    void heos$setConnection(Connection connection);
+
+    Connection heos$getConnection();
     
     /**
      * Sets the player's IP address directly
      */
     void heos$setIpAddress(String ipAddress);
+
+    /**
+     * Gets the protocol version advertised by the client during handshake.
+     */
+    int heos$getClientProtocolVersion();
+
+    /**
+     * Sets the protocol version advertised by the client during handshake.
+     */
+    void heos$setClientProtocolVersion(int protocolVersion);
+
+    default boolean heos$isSameProtocol() {
+        return heos$getClientProtocolVersion() == SharedConstants.getProtocolVersion();
+    }
     
     /**
      * Gets player data

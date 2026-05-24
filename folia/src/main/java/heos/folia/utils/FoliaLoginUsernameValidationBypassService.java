@@ -5,10 +5,13 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
+import heos.folia.storage.FoliaBanData;
+import heos.folia.storage.FoliaWhitelistData;
 import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,10 +31,14 @@ public final class FoliaLoginUsernameValidationBypassService implements AutoClos
     private static final String VANILLA_PACKET_HANDLER = "packet_handler";
 
     private final Plugin plugin;
+    private final FoliaBanData banData;
+    private final FoliaWhitelistData whitelistData;
     private final Set<Channel> serverChannels = Collections.newSetFromMap(new IdentityHashMap<>());
 
-    public FoliaLoginUsernameValidationBypassService(Plugin plugin) {
+    public FoliaLoginUsernameValidationBypassService(Plugin plugin, FoliaBanData banData, FoliaWhitelistData whitelistData) {
         this.plugin = plugin;
+        this.banData = banData;
+        this.whitelistData = whitelistData;
     }
 
     public void install() {
@@ -109,6 +116,9 @@ public final class FoliaLoginUsernameValidationBypassService implements AutoClos
             public void channelRead(ChannelHandlerContext context, Object message) throws Exception {
                 if (isHelloPacket(message)) {
                     String username = packetUsername(message);
+                    if (username != null && rejectHeosLogin(context.channel(), username)) {
+                        return;
+                    }
                     if (username != null && shouldAcceptOfflineLogin(username)) {
                         if (acceptOfflineLogin(context.channel(), username)) {
                             return;
@@ -120,6 +130,86 @@ public final class FoliaLoginUsernameValidationBypassService implements AutoClos
             }
         });
         removeHandler(channel, CHILD_BOOTSTRAP_HANDLER);
+    }
+
+    private boolean rejectHeosLogin(Channel channel, String username) {
+        return rejectOfflineUsername(username, channel)
+                || rejectWhitelist(username, channel)
+                || rejectBan(username, channel);
+    }
+
+    private boolean rejectOfflineUsername(String username, Channel channel) {
+        if (FoliaMojangApi.isValidMojangUsername(username)) {
+            return false;
+        }
+        boolean allowMoreCharacters = plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true);
+        if (!FoliaMojangApi.isAllowedOfflineUsername(username, allowMoreCharacters)) {
+            plugin.getLogger().info(FoliaMessages.invalidOfflineNameLog() + ": " + username);
+            return disconnectLogin(channel, FoliaMessages.offlineNameHint());
+        }
+        if (!plugin.getConfig().getBoolean("allowOfflinePlayers", true)) {
+            plugin.getLogger().info("Offline player is not allowed: " + username);
+            return disconnectLogin(channel, FoliaMessages.offlineNameHint());
+        }
+        return false;
+    }
+
+    private boolean rejectWhitelist(String username, Channel channel) {
+        if (!plugin.getConfig().getBoolean("enableWhitelist", false) || whitelistData.isWhitelisted(username)) {
+            return false;
+        }
+        plugin.getLogger().info(FoliaMessages.whitelistDeniedLog(username));
+        return disconnectLogin(channel, FoliaMessages.whitelistKick());
+    }
+
+    private boolean rejectBan(String username, Channel channel) {
+        FoliaBanData.BanEntry playerBan = banData.getPlayerBan(username, null);
+        if (playerBan != null) {
+            if (!plugin.getConfig().getBoolean("enableCustomBan", true) && !FoliaMessages.isMigrationReason(playerBan.reason)) {
+                return false;
+            }
+            if (FoliaMessages.isMigrationReason(playerBan.reason)) {
+                plugin.getLogger().info(FoliaMessages.migrationBanAttemptLog(username));
+            }
+            return disconnectLogin(channel, FoliaMessages.banMessage(playerBan.reason, FoliaTimeParser.formatAbsolute(playerBan.expiryTime)));
+        }
+
+        if (!plugin.getConfig().getBoolean("enableCustomBan", true)) {
+            return false;
+        }
+        FoliaBanData.IpBanEntry ipBan = banData.getIpBan(channelIp(channel));
+        if (ipBan == null) {
+            return false;
+        }
+        return disconnectLogin(channel, FoliaMessages.banIpMessage(ipBan.reason, FoliaTimeParser.formatAbsolute(ipBan.expiryTime)));
+    }
+
+    private boolean disconnectLogin(Channel channel, String message) {
+        ChannelHandler handler = channel.pipeline().get(VANILLA_PACKET_HANDLER);
+        if (handler == null) {
+            return false;
+        }
+        Object listener = findPacketListener(handler);
+        if (listener == null) {
+            return false;
+        }
+        try {
+            Class<?> componentClass = Class.forName("net.minecraft.network.chat.Component");
+            Object component = componentClass.getMethod("literal", String.class).invoke(null, message);
+            Method disconnect = listener.getClass().getMethod("disconnect", componentClass);
+            disconnect.invoke(listener, component);
+            return true;
+        } catch (ReflectiveOperationException | RuntimeException exception) {
+            plugin.getLogger().log(Level.FINE, "Failed to send native Folia login disconnect", exception);
+            return false;
+        }
+    }
+
+    private static String channelIp(Channel channel) {
+        if (channel.remoteAddress() instanceof InetSocketAddress address && address.getAddress() != null) {
+            return address.getAddress().getHostAddress();
+        }
+        return "";
     }
 
     private boolean shouldAcceptOfflineLogin(String username) {

@@ -44,9 +44,4 @@ gradle.projectsEvaluated {
         finalizedBy(collectReleaseJars)
     }
 
-    versionProjects.forEach { versionProject ->
-        versionProject.tasks.matching { it.name == "build" }.configureEach {
-            finalizedBy(collectReleaseJars)
-        }
-    }
 }
