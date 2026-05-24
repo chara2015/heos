@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "id": "viafabric",
+  "name": "ViaFabric",
+  "version": "${version}",
+  "description": "${description}",
+  "license": "GPL-3.0",
+  "contact": {
+    "homepage": "https://viaversion.com/fabric",
+    "issues": "https://github.com/ViaVersion/ViaFabric/issues",
+    "sources": "https://github.com/ViaVersion/ViaFabric",
+    "discord": "https://discord.gg/viaversion"
+  },
+  "depends": {
+    "minecraft": [
+      "1.14.4",
+      "1.15.2",
+      "1.16.4",
+      "1.16.5",
+      "1.17.1",
+      "1.18.2",
+      "1.19.4",
+      "1.20",
+      "1.20.3",
+      "1.20.5",
+      "1.20.6",
+      "1.21.11"
+    ],
+    "viaversion": ">=5.0.0"
+  },
+  "breaks": {
+    "viafabricplus": "*"
+  },
+  "environment": "*",
+  "authors": [
+    {
+      "name": "creeper123123321",
+      "contact": {
+        "homepage": "https://creeper123123321.github.io/"
+      }
+    },
+    {
+      "name": "Florian Reuth (EnZaXD)",
+      "contact": {
+        "email": "git@florianreuth.de",
+        "homepage": "https://github.com/florianreuth"
+      }
+    },
+    {
+      "name": "kennytv",
+      "contact": {
+        "homepage": "https://kennytv.eu"
+      }
+    },
+    {
+      "name": "Kichura",
+      "contact": {
+        "homepage": "https://github.com/Kichura"
+      }
+    }
+  ],
+  "entrypoints": {
+    "main": [
+      "com.viaversion.fabric.common.ViaFabric"
+    ]
+  },
+  "contributors": [
+    {
+      "name": "GitHub contributors",
+      "contact": {
+        "homepage": "https://github.com/ViaVersion/ViaFabric/graphs/contributors"
+      }
+    }
+  ],
+  "icon": "assets/viafabric/textures/logo.png"
+}

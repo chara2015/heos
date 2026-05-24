@@ -1,0 +1,539 @@
+/*
+ * This file is part of ViaVersion - https://github.com/ViaVersion/ViaVersion
+ * Copyright (C) 2016-2026 ViaVersion and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package com.viaversion.viaversion.rewriter;
+
+import com.viaversion.nbt.tag.CompoundTag;
+import com.viaversion.nbt.tag.ListTag;
+import com.viaversion.nbt.tag.StringTag;
+import com.viaversion.nbt.tag.Tag;
+import com.viaversion.viaversion.api.connection.UserConnection;
+import com.viaversion.viaversion.api.data.FullMappings;
+import com.viaversion.viaversion.api.data.MappingData;
+import com.viaversion.viaversion.api.data.Mappings;
+import com.viaversion.viaversion.api.data.entity.DimensionData;
+import com.viaversion.viaversion.api.minecraft.RegistryEntry;
+import com.viaversion.viaversion.api.protocol.Protocol;
+import com.viaversion.viaversion.api.protocol.packet.ClientboundPacketType;
+import com.viaversion.viaversion.api.protocol.packet.PacketWrapper;
+import com.viaversion.viaversion.api.protocol.packet.State;
+import com.viaversion.viaversion.api.rewriter.ComponentRewriter;
+import com.viaversion.viaversion.api.type.Types;
+import com.viaversion.viaversion.data.entity.DimensionDataImpl;
+import com.viaversion.viaversion.util.Key;
+import com.viaversion.viaversion.util.KeyMappings;
+import com.viaversion.viaversion.util.TagUtil;
+import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+public class RegistryDataRewriter implements com.viaversion.viaversion.api.rewriter.RegistryDataRewriter {
+    private final Map<String, BiConsumer<String, CompoundTag>> registryEntryHandlers = new Object2ObjectArrayMap<>();
+    private final Map<String, Consumer<CompoundTag>> enchantmentEffectHandlers = new Object2ObjectArrayMap<>(); // for nested enchantment data
+    private final Map<String, List<RegistryEntry>> toAdd = new Object2ObjectArrayMap<>();
+    private final Set<String> toRemove = new HashSet<>();
+    protected final Map<String, KeyMappings> registryKeyMappings = new HashMap<>();
+    protected final Protocol<?, ?, ?, ?> protocol;
+
+    public RegistryDataRewriter(final Protocol<?, ?, ?, ?> protocol) {
+        this.protocol = protocol;
+    }
+
+    @Override
+    public void handle(final PacketWrapper wrapper) {
+        final String registryKey = Key.stripMinecraftNamespace(wrapper.passthrough(Types.STRING));
+        RegistryEntry[] entries = wrapper.read(Types.REGISTRY_ENTRY_ARRAY);
+        entries = handle(wrapper.user(), registryKey, entries);
+        wrapper.write(Types.REGISTRY_ENTRY_ARRAY, entries);
+
+        if (this.toRemove.contains(registryKey)) {
+            wrapper.cancel();
+        }
+    }
+
+    public RegistryEntry[] handle(final UserConnection connection, String key, RegistryEntry[] entries) {
+        key = Key.stripMinecraftNamespace(key);
+
+        final String[] keys = new String[entries.length];
+        for (int i = 0; i < entries.length; i++) {
+            keys[i] = Key.stripMinecraftNamespace(entries[i].key());
+        }
+        this.registryKeyMappings.put(key, new KeyMappings(keys));
+
+        switch (key) {
+            case "enchantment" -> updateEnchantments(connection, entries);
+            case "trim_material" -> updateTrimMaterials(entries);
+            case "jukebox_song" -> updateJukeboxSongs(entries);
+            case "worldgen/biome" -> updateBiomes(entries);
+            case "dialog" -> updateDialogs(connection, entries);
+        }
+
+        final BiConsumer<String, CompoundTag> registryEntryHandler = this.registryEntryHandlers.get(key);
+        if (registryEntryHandler != null) {
+            for (final RegistryEntry entry : entries) {
+                if (entry.tag() == null) {
+                    continue;
+                }
+
+                final CompoundTag tag = (CompoundTag) entry.tag();
+                registryEntryHandler.accept(entry.key(), tag);
+            }
+        }
+
+        final List<RegistryEntry> toAdd = this.toAdd.get(key);
+        if (toAdd != null) {
+            final Set<String> existingKeys = new HashSet<>();
+
+            final RegistryEntry[] updatedEntries = new RegistryEntry[entries.length + toAdd.size()];
+            int index = 0;
+            for (final RegistryEntry entry : entries) {
+                updatedEntries[index++] = entry;
+                existingKeys.add(Key.stripMinecraftNamespace(entry.key()));
+            }
+            for (final RegistryEntry entry : toAdd) {
+                if (existingKeys.contains(Key.stripMinecraftNamespace(entry.key()))) {
+                    continue;
+                }
+
+                updatedEntries[index++] = entry.copy();
+            }
+
+            if (index < updatedEntries.length) {
+                entries = Arrays.copyOf(updatedEntries, index);
+            } else {
+                entries = updatedEntries;
+            }
+        }
+
+        trackDimensionAndBiomes(connection, key, entries);
+        return entries;
+    }
+
+    public void addEntries(final String registryKey, final RegistryEntry... entries) {
+        toAdd.computeIfAbsent(Key.stripMinecraftNamespace(registryKey), $ -> new ArrayList<>()).addAll(List.of(entries));
+    }
+
+    public void remove(final String registryKey) {
+        toRemove.add(Key.stripMinecraftNamespace(registryKey));
+    }
+
+    public void addHandler(String registryKey, final BiConsumer<String, CompoundTag> handler) {
+        registryEntryHandlers.put(Key.stripMinecraftNamespace(registryKey), handler);
+    }
+
+    @Override
+    public void sendMissingRegistries(final UserConnection connection) {
+        for (final Map.Entry<String, List<RegistryEntry>> entry : this.toAdd.entrySet()) {
+            if (registryKeyMappings.containsKey(entry.getKey())) {
+                continue;
+            }
+
+            final List<RegistryEntry> toAdd = entry.getValue();
+            final RegistryEntry[] entries = new RegistryEntry[toAdd.size()];
+            for (int i = 0; i < toAdd.size(); i++) {
+                entries[i] = toAdd.get(i).copy();
+            }
+
+            final ClientboundPacketType packetType = protocol.getPacketTypesProvider().mappedClientboundType(State.CONFIGURATION, "REGISTRY_DATA");
+            final PacketWrapper registryData = PacketWrapper.create(packetType, connection);
+            registryData.write(Types.STRING, entry.getKey());
+            registryData.write(Types.REGISTRY_ENTRY_ARRAY, entries);
+            registryData.send(protocol.getClass());
+        }
+    }
+
+    public void addEnchantmentEffectRewriter(final String key, final Consumer<CompoundTag> rewriter) {
+        enchantmentEffectHandlers.put(Key.stripMinecraftNamespace(key), rewriter);
+    }
+
+    public void trackDimensionAndBiomes(final UserConnection connection, final String registryKey, final RegistryEntry[] entries) {
+        if (registryKey.equals("worldgen/biome")) {
+            protocol.getEntityRewriter().tracker(connection).setBiomesSent(entries.length);
+        } else if (registryKey.equals("dimension_type")) {
+            final Map<String, DimensionData> dimensionDataMap = new HashMap<>(entries.length);
+            for (int i = 0; i < entries.length; i++) {
+                final RegistryEntry entry = entries[i];
+                final String key = Key.stripMinecraftNamespace(entry.key());
+                final DimensionData dimensionData = entry.tag() != null
+                    ? new DimensionDataImpl(i, (CompoundTag) entry.tag())
+                    : DimensionDataImpl.withDefaultsFor(key, i);
+                dimensionDataMap.put(key, dimensionData);
+            }
+            protocol.getEntityRewriter().tracker(connection).setDimensions(dimensionDataMap);
+        }
+    }
+
+    public void updateDialogs(final UserConnection connection, final RegistryEntry[] entries) {
+        if (protocol.getMappingData() != null && protocol.getMappingData().getFullItemMappings() == null) {
+            return;
+        }
+        for (final RegistryEntry entry : entries) {
+            if (entry.tag() != null) {
+                updateDialog(connection, (CompoundTag) entry.tag());
+            }
+        }
+    }
+
+    @Override
+    public void updateDialog(final UserConnection connection, final CompoundTag tag) {
+        final ComponentRewriter componentRewriter = protocol.getComponentRewriter();
+        if (componentRewriter != null) {
+            componentRewriter.processTag(connection, tag.get("title"));
+            componentRewriter.processTag(connection, tag.get("external_title"));
+        }
+
+        final ListTag<CompoundTag> inputsTag = tag.getListTag("inputs", CompoundTag.class);
+        if (inputsTag != null && componentRewriter != null) {
+            for (final CompoundTag input : inputsTag) {
+                updateTextComponent(connection, input, "label");
+
+                final String type = input.getString("type");
+                if (!Key.equals(type, "single_option")) {
+                    continue;
+                }
+
+                final ListTag<CompoundTag> optionsTag = input.getListTag("options", CompoundTag.class);
+                if (optionsTag != null) {
+                    optionsTag.forEach(option -> updateTextComponent(connection, option, "display"));
+                }
+            }
+        }
+
+        final String type = tag.getString("type");
+        switch (Key.stripMinecraftNamespace(type)) {
+            case "confirmation" -> {
+                updateDialogAction(connection, tag.getCompoundTag("yes"));
+                updateDialogAction(connection, tag.getCompoundTag("no"));
+            }
+            case "dialog_list" -> {
+                updateDialogAction(connection, tag.getCompoundTag("exit_action"));
+
+                final ListTag<CompoundTag> dialogsTag = tag.getListTag("dialogs", CompoundTag.class);
+                if (dialogsTag != null) {
+                    dialogsTag.forEach(dialog -> updateDialog(connection, dialog));
+                } else {
+                    final CompoundTag dialogTag = tag.getCompoundTag("dialogs");
+                    if (dialogTag != null) {
+                        updateDialog(connection, dialogTag); // inlined
+                    }
+                }
+            }
+            case "multi_action" -> {
+                updateDialogAction(connection, tag.getCompoundTag("exit_action"));
+
+                final ListTag<CompoundTag> actionsTag = tag.getListTag("actions", CompoundTag.class);
+                if (actionsTag != null) {
+                    actionsTag.forEach(action -> updateDialogAction(connection, action));
+                }
+            }
+            case "notice" -> updateDialogAction(connection, tag.getCompoundTag("action"));
+            case "server_links" -> updateDialogAction(connection, tag.getCompoundTag("exit_action"));
+        }
+
+        final ListTag<CompoundTag> bodiesTag = tag.getListTag("body", CompoundTag.class);
+        if (bodiesTag != null) {
+            bodiesTag.forEach(body -> updateDialogBody(connection, body));
+        } else {
+            final CompoundTag bodyTag = tag.getCompoundTag("body");
+            if (bodyTag != null) {
+                updateDialogBody(connection, bodyTag); // inlined
+            }
+        }
+    }
+
+    public void updateDialogAction(final UserConnection connection, final CompoundTag tag) {
+        updateTextComponent(connection, tag, "label");
+        updateTextComponent(connection, tag, "tooltip");
+    }
+
+    protected void updateTextComponent(final UserConnection connection, @Nullable final CompoundTag tag, final String key) {
+        if (tag != null && protocol.getComponentRewriter() != null) {
+            protocol.getComponentRewriter().processTag(connection, tag.get(key));
+        }
+    }
+
+    public void updateDialogBody(final UserConnection connection, final CompoundTag tag) {
+        final String type = tag.getString("type");
+        final ComponentRewriter componentRewriter = protocol.getComponentRewriter();
+        if (Key.equals(type, "plain_message")) {
+            if (componentRewriter != null) {
+                componentRewriter.processTag(connection, tag.get("contents"));
+            }
+        } else if (Key.equals(type, "item")) {
+            if (componentRewriter != null) {
+                // Either a plain message or an inlined component
+                final Tag description = tag.get("description");
+                componentRewriter.processTag(connection, description);
+                if (description instanceof final CompoundTag descriptionTag) {
+                    componentRewriter.processTag(connection, descriptionTag.get("contents"));
+                }
+            }
+
+            final StringTag itemIdTag = tag.getStringTag("item");
+            if (itemIdTag != null) {
+                final String mappedId = protocol.getMappingData().getFullItemMappings().mappedIdentifier(itemIdTag.getValue());
+                if (mappedId != null) {
+                    itemIdTag.setValue(mappedId);
+                }
+            } else if (componentRewriter != null) {
+                componentRewriter.handleShowItem(connection, tag.getCompoundTag("item"));
+            }
+        }
+    }
+
+    public void updateEnchantments(final UserConnection connection, final RegistryEntry[] entries) {
+        for (final RegistryEntry entry : entries) {
+            if (entry.tag() == null) {
+                continue;
+            }
+
+            final CompoundTag tag = (CompoundTag) entry.tag();
+            if (!Mappings.isFullIdentity(protocol.getMappingData().getFullItemMappings())) {
+                updateItemList(tag.getListTag("supported_items", StringTag.class));
+                updateItemList(tag.getListTag("primary_items", StringTag.class));
+            }
+
+            final CompoundTag effects = tag.getCompoundTag("effects");
+            if (effects == null) {
+                continue;
+            }
+
+            // Go through all effects, almost all of them may contain an "effect" element
+            for (final Map.Entry<String, Tag> effectEntry : effects.entrySet()) {
+                if (effectEntry.getValue() instanceof final CompoundTag compoundTag) {
+                    updateNestedEffect(compoundTag);
+                } else if (effectEntry.getValue() instanceof final ListTag<?> listTag && listTag.getElementType() == CompoundTag.class) {
+                    for (final Tag effectTag : listTag) {
+                        updateNestedEffect((CompoundTag) effectTag);
+                    }
+                }
+            }
+
+            final MappingData mappingData = protocol.getMappingData();
+            if (mappingData == null) {
+                continue;
+            }
+
+            if (mappingData.getAttributeMappings() != null) {
+                updateAttributesFields(effects);
+            }
+        }
+    }
+
+    public void updateTrimMaterials(final RegistryEntry[] entries) {
+        if (Mappings.isFullIdentity(protocol.getMappingData().getFullItemMappings())) {
+            return;
+        }
+
+        for (final RegistryEntry entry : entries) {
+            if (entry.tag() == null) {
+                continue;
+            }
+
+            final StringTag ingredientTag = ((CompoundTag) entry.tag()).getStringTag("ingredient");
+            if (ingredientTag == null) {
+                return;
+            }
+
+            updateItem(ingredientTag);
+        }
+    }
+
+    public void updateJukeboxSongs(final RegistryEntry[] entries) {
+        // can be overridden
+    }
+
+    public void updateBiomes(final RegistryEntry[] entries) {
+        for (final RegistryEntry entry : entries) {
+            if (entry.tag() == null) {
+                continue;
+            }
+
+            final CompoundTag effects = ((CompoundTag) entry.tag()).getCompoundTag("effects");
+            if (effects == null) {
+                continue;
+            }
+
+            final CompoundTag particle = effects.getCompoundTag("particle");
+            if (particle != null) {
+                handleParticleData(particle.getCompoundTag("options"));
+            }
+        }
+    }
+
+    private void updateNestedEffect(final CompoundTag effectsTag) {
+        final CompoundTag effect = effectsTag.getCompoundTag("effect");
+        if (effect != null) {
+            runEffectRewriters(effect);
+
+            final ListTag<CompoundTag> innerEffects = effect.getListTag("effects", CompoundTag.class);
+            if (innerEffects != null) {
+                for (final CompoundTag innerEffect : innerEffects) {
+                    runEffectRewriters(innerEffect);
+                }
+            }
+        }
+
+        final CompoundTag requirements = effectsTag.getCompoundTag("requirements");
+        final ListTag<CompoundTag> terms;
+        if (requirements != null && (terms = requirements.getListTag("terms", CompoundTag.class)) != null) {
+            for (final CompoundTag term : terms) {
+                updateEnchantmentTerm(term);
+            }
+        }
+    }
+
+    public void updateEnchantmentTerm(final CompoundTag term) {
+        final String condition = term.getString("condition");
+        if (Key.equals(condition, "all_of") || Key.equals(condition, "any_of")) {
+            final ListTag<CompoundTag> terms = term.getListTag("terms", CompoundTag.class);
+            if (terms != null) {
+                for (final CompoundTag childTerm : terms) {
+                    updateEnchantmentTerm(childTerm);
+                }
+            }
+        } else if (Key.equals(condition, "inverted")) {
+            final CompoundTag childTerm = term.getCompoundTag("term");
+            if (childTerm != null) {
+                updateEnchantmentTerm(childTerm);
+            }
+        } else if (Key.equals(condition, "entity_properties")) {
+            final CompoundTag predicate = term.getCompoundTag("predicate");
+            if (predicate != null) {
+                updateType(predicate, "type", protocol.getMappingData().getEntityMappings());
+            }
+        } else if (Key.equals(condition, "block_state_property")) {
+            updateType(term, "block", protocol.getMappingData().getFullBlockMappings());
+        }
+    }
+
+    private void updateAttributesFields(final CompoundTag effects) {
+        final ListTag<CompoundTag> attributesList = TagUtil.getNamespacedCompoundTagList(effects, "attributes");
+        if (attributesList == null) {
+            return;
+        }
+
+        for (final CompoundTag attributeData : attributesList) {
+            updateType(attributeData, "attribute", protocol.getMappingData().getAttributeMappings());
+        }
+    }
+
+    protected void handleParticleData(final CompoundTag particleData) {
+        updateType(particleData, "type", protocol.getMappingData().getParticleMappings());
+    }
+
+    private void runEffectRewriters(final CompoundTag effectTag) {
+        String effect = effectTag.getString("type");
+        if (effect == null) {
+            return;
+        }
+
+        effect = Key.stripMinecraftNamespace(effect);
+        if (effect.equals("attribute")) {
+            updateType(effectTag, "attribute", protocol.getMappingData().getAttributeMappings());
+        } else if (effect.equals("spawn_particles")) {
+            final CompoundTag particleData = effectTag.getCompoundTag("particle");
+            if (particleData != null) {
+                handleParticleData(particleData);
+            }
+        }
+
+        final Consumer<CompoundTag> rewriter = enchantmentEffectHandlers.get(effect);
+        if (rewriter != null) {
+            rewriter.accept(effectTag);
+        } else if (effect.equals("play_sound")) {
+            updateType(effectTag, "sound", protocol.getMappingData().getFullSoundMappings());
+        }
+    }
+
+    protected void updateType(final CompoundTag tag, final String key, final FullMappings mappings) {
+        final Tag typeTag = tag.get(key);
+        if (typeTag == null || Mappings.isFullIdentity(mappings)) {
+            return;
+        }
+
+        if (typeTag instanceof StringTag stringTag) {
+            setMappedOrDummyId(mappings, stringTag);
+        } else if (typeTag instanceof ListTag<?> listTag && listTag.getElementType() == StringTag.class) {
+            //noinspection unchecked
+            final ListTag<StringTag> typesTag = (ListTag<StringTag>) listTag;
+            for (final StringTag entry : typesTag) {
+                setMappedOrDummyId(mappings, entry);
+            }
+        }
+    }
+
+    private void setMappedOrDummyId(final FullMappings mappings, final StringTag tag) {
+        String mappedType = mappings.mappedIdentifier(tag.getValue());
+        if (mappedType == null) {
+            mappedType = mappings.mappedIdentifier(0); // Dummy
+        }
+        tag.setValue(mappedType);
+    }
+
+    private void updateItemList(final ListTag<StringTag> listTag) {
+        if (listTag == null) {
+            return;
+        }
+        for (final StringTag tag : listTag) {
+            updateItem(tag);
+        }
+    }
+
+    private void updateItem(final StringTag tag) {
+        final String mapped = protocol.getMappingData().getFullItemMappings().mappedIdentifier(tag.getValue());
+        if (mapped != null) {
+            tag.setValue(mapped);
+        }
+    }
+
+    public RegistryEntry[] entriesFromTag(final CompoundTag tag) {
+        final RegistryEntry[] entries = new RegistryEntry[tag.size()];
+        int index = 0;
+        for (final Map.Entry<String, Tag> entry : tag.entrySet()) {
+            entries[index++] = new RegistryEntry(entry.getKey(), entry.getValue());
+        }
+        return entries;
+    }
+
+    @Override
+    public @Nullable KeyMappings getMappings(final String registryKey) {
+        return this.registryKeyMappings.get(Key.stripMinecraftNamespace(registryKey));
+    }
+
+    public Map<String, KeyMappings> registryKeyMappings() {
+        return registryKeyMappings;
+    }
+
+    @Override
+    public boolean shouldRemoveRegistry(final String registryKey) {
+        return this.toRemove.contains(Key.stripMinecraftNamespace(registryKey));
+    }
+
+    @Override
+    public boolean hasRegistriesToRemove() {
+        return !this.toRemove.isEmpty();
+    }
+}
