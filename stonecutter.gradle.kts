@@ -16,10 +16,14 @@ val collectReleaseJars by tasks.registering(Sync::class) {
 
 gradle.projectsEvaluated {
     val versionProjects = subprojects.filter { !it.path.startsWith(":folia") && it.findProperty("minecraft_version") != null }
-    val versionBuilds = versionProjects.map { it.tasks.named("build") }
+    val versionAssemblies = versionProjects.map { it.tasks.named("assemble") }
+    val foliaProject = findProject(":folia")
+    val foliaVersionProjects = foliaProject?.subprojects.orEmpty()
+    val foliaShadowJars = foliaVersionProjects.map { it.tasks.named("shadowJar") }
 
     collectReleaseJars.configure {
-        dependsOn(versionBuilds)
+        dependsOn(versionAssemblies)
+        dependsOn(foliaShadowJars)
 
         versionProjects.forEach { versionProject ->
             val releaseJar = if (versionProject.findProperty("minecraft_version")
@@ -38,9 +42,16 @@ gradle.projectsEvaluated {
                 exclude("*-sources.jar", "*-dev.jar", "*-all.jar")
             }
         }
+
+        foliaVersionProjects.forEach { versionProject ->
+            from(versionProject.tasks.named("shadowJar").map { it.outputs.files }) {
+                include("*.jar")
+                exclude("*-sources.jar", "*-dev.jar", "*-all.jar")
+            }
+        }
     }
 
-    tasks.matching { it.name == "build" }.configureEach {
+    tasks.matching { it.name == "assemble" || it.name == "build" }.configureEach {
         finalizedBy(collectReleaseJars)
     }
 

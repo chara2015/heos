@@ -16,7 +16,7 @@ val modHomepage = modMetadata.getValue("MOD_HOMEPAGE")
 version = modVersion
 
 val foliaSourceRoot = project.layout.projectDirectory.dir("src/main")
-val releaseJars = layout.buildDirectory.dir("libs")
+val releaseJars = rootProject.layout.buildDirectory.dir("release-jars")
 
 subprojects {
     apply(plugin = "java")
@@ -89,12 +89,12 @@ subprojects {
 val buildAll by tasks.registering {
     group = "build"
     description = "Builds all Folia version jars."
-    dependsOn(subprojects.map { it.tasks.named("build") })
+    dependsOn(subprojects.map { it.tasks.named("assemble") })
 }
 
-val collectFoliaJars by tasks.registering(Sync::class) {
+val collectFoliaJars by tasks.registering(Copy::class) {
     group = "build"
-    description = "Collects all Folia version jars into folia/build/libs."
+    description = "Collects all Folia version jars into root build/release-jars."
     dependsOn(subprojects.map { it.tasks.named("shadowJar") })
     into(releaseJars)
     subprojects.forEach { versionProject ->
@@ -105,6 +105,11 @@ val collectFoliaJars by tasks.registering(Sync::class) {
 }
 
 tasks.named("build") {
+    dependsOn(buildAll)
+    finalizedBy(collectFoliaJars)
+}
+
+tasks.named("assemble") {
     dependsOn(buildAll)
     finalizedBy(collectFoliaJars)
 }

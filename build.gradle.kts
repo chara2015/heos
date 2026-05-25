@@ -63,6 +63,7 @@ val minecraftVersionLabel = when (supportedVersionsForArtifact.size) {
 }
 
 base.archivesName = "${modId}-mc$minecraftVersionLabel"
+val releaseJarsDirectory = rootProject.layout.buildDirectory.dir("release-jars")
 
 val awFile = when {
     isMinecraft26Plus -> "heos.26.1.2.accesswidener"
@@ -144,6 +145,31 @@ tasks.jar {
 
 tasks.findByName("remapJar")?.let { remapJarTask ->
     remapJarTask.outputs.upToDateWhen { false }
+}
+
+val releaseJarTask = if (isMinecraft26Plus) {
+    tasks.named("jar")
+} else {
+    tasks.named("remapJar")
+}
+
+val collectFabricJar by tasks.registering(Copy::class) {
+    group = "build"
+    description = "Collects this Fabric release jar into root build/release-jars."
+    dependsOn(releaseJarTask)
+    into(releaseJarsDirectory)
+    from(releaseJarTask.map { it.outputs.files }) {
+        include("*.jar")
+        exclude("*-sources.jar", "*-dev.jar", "*-all.jar")
+    }
+}
+
+tasks.named("assemble") {
+    finalizedBy(collectFabricJar)
+}
+
+tasks.named("build") {
+    finalizedBy(collectFabricJar)
 }
 
 tasks.withType<ProcessResources>().configureEach {

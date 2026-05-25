@@ -1,7 +1,6 @@
 package heos.utils;
 
 import heos.Heos;
-import heos.interfaces.PlayerAuth;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundTabListPacket;
@@ -25,16 +24,12 @@ public final class TpsDisplayService {
         if (!Heos.getConfig().enableAutoLogTps) {
             return;
         }
-        UUID uuid = player.getUUID();
-        if (player instanceof PlayerAuth auth && !auth.heos$isSameProtocol()) {
-            ACTIVE.remove(uuid);
-            return;
-        }
-        ACTIVE.put(uuid, Math.max(1, Heos.getConfig().autoLogTpsDelayTicks));
+        ACTIVE.put(player.getUUID(), Math.max(1, Heos.getConfig().autoLogTpsDelayTicks));
     }
 
     public static void stop(ServerPlayer player) {
         ACTIVE.remove(player.getUUID());
+        clearDisplay(player);
     }
 
     public static void tick(MinecraftServer server) {
@@ -49,10 +44,6 @@ public final class TpsDisplayService {
                 ACTIVE.remove(uuid);
                 continue;
             }
-            if (player instanceof PlayerAuth auth && !auth.heos$isSameProtocol()) {
-                ACTIVE.remove(uuid);
-                continue;
-            }
             int ticksLeft = entry.getValue() - 1;
             if (ticksLeft > 0) {
                 ACTIVE.put(uuid, ticksLeft);
@@ -64,8 +55,16 @@ public final class TpsDisplayService {
                     .append(Component.literal(TpsTracker.formatCarpetTps()).withStyle(valueColor))
                     .append(Component.literal(" MSPT: ").withStyle(ChatFormatting.GRAY))
                     .append(Component.literal(TpsTracker.formatCarpetMspt()).withStyle(valueColor));
-            player.connection.send(new ClientboundTabListPacket(Component.literal(""), footer));
+            sendDisplay(player, footer);
             ACTIVE.put(uuid, delay);
         }
+    }
+
+    private static void sendDisplay(ServerPlayer player, Component footer) {
+        player.connection.send(new ClientboundTabListPacket(Component.empty(), footer));
+    }
+
+    private static void clearDisplay(ServerPlayer player) {
+        player.connection.send(new ClientboundTabListPacket(Component.empty(), Component.empty()));
     }
 }
