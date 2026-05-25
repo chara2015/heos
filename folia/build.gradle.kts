@@ -17,6 +17,17 @@ version = modVersion
 
 val foliaSourceRoot = project.layout.projectDirectory.dir("src/main")
 val releaseJars = rootProject.layout.buildDirectory.dir("release-jars")
+val supportedFoliaVersions = mapOf(
+    "1.20.1" to "1.20-1.20.1",
+    "1.20.2" to "1.20.2-1.20.3",
+    "1.20.4" to "1.20.4",
+    "1.20.6" to "1.20.5-1.20.6",
+    "1.21.4" to "1.21-1.21.4",
+    "1.21.5" to "1.21.5",
+    "1.21.6" to "1.21.6-1.21.7",
+    "1.21.8" to "1.21.8-1.21.10",
+    "1.21.11" to "1.21.11"
+)
 
 subprojects {
     apply(plugin = "java")
@@ -76,7 +87,7 @@ subprojects {
     }
 
     tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
-        archiveBaseName.set("${modId}-folia-mc${project.name}")
+        archiveBaseName.set("${modId}-folia-mc${supportedFoliaVersions[project.name] ?: project.name}")
         archiveVersion.set(project.version.toString())
         archiveClassifier.set("")
     }
