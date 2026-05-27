@@ -43,7 +43,7 @@ public abstract class GhostPearlServerPlayerMixin {
     //?} else {
     /*private void heos$cleanupGhostPearlsBeforeSaving(CompoundTag output, CallbackInfo ci) {
     *///?}
-        GhostPearlFix.cleanupPearls((ServerPlayer) (Object) this);
+        GhostPearlFix.rememberPearlsSavedWithPlayer((ServerPlayer) (Object) this);
     }
 
     //? if >= 1.21.5 {

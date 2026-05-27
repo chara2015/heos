@@ -14,10 +14,14 @@ import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnder
 
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 
 public final class GhostPearlFix {
+    private static final Map<UUID, Set<UUID>> PEARLS_SAVED_WITH_PLAYER = new ConcurrentHashMap<>();
+
     private GhostPearlFix() {
     }
 
@@ -62,6 +66,20 @@ public final class GhostPearlFix {
         }
     }
 
+    public static void rememberPearlsSavedWithPlayer(ServerPlayer player) {
+        cleanupPearls(player);
+        Set<UUID> pearlUuids = ConcurrentHashMap.newKeySet();
+        for (ThrownEnderpearl pearl : player.getEnderPearls()) {
+            pearlUuids.add(pearl.getUUID());
+        }
+
+        if (pearlUuids.isEmpty()) {
+            PEARLS_SAVED_WITH_PLAYER.remove(player.getUUID());
+        } else {
+            PEARLS_SAVED_WITH_PLAYER.put(player.getUUID(), pearlUuids);
+        }
+    }
+
     public static void removePearlReferences(ServerPlayer player, ThrownEnderpearl pearl) {
         if (pearl == null) {
             cleanupPearls(player);
@@ -103,11 +121,16 @@ public final class GhostPearlFix {
 
         ServerPlayer player = server.getPlayerList().getPlayer(ownerUuid);
         if (player == null) {
-            return false;
+            return !wasSavedWithPlayer(ownerUuid, pearl.getUUID());
         }
 
         cleanupPearls(player);
         return !player.getEnderPearls().contains(pearl) && !hasRegisteredPearlWithSameUuid(player, pearl);
+    }
+
+    private static boolean wasSavedWithPlayer(UUID ownerUuid, UUID pearlUuid) {
+        Set<UUID> pearlUuids = PEARLS_SAVED_WITH_PLAYER.get(ownerUuid);
+        return pearlUuids != null && pearlUuids.contains(pearlUuid);
     }
 
     private static UUID getOwnerUuid(ThrownEnderpearl pearl) {
