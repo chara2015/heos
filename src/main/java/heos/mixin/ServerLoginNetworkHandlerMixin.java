@@ -240,19 +240,15 @@ public abstract class ServerLoginNetworkHandlerMixin {
     @Unique
     private boolean heos$shouldContinueVanillaPremiumFlow(String username) {
         PlayerData data = Heos.getPlayerData(username, true);
-        if (data.isOnlineAccount) {
+        if (data.isOnlineAccount && data.uuid != null) {
             HeosLogger.debug("Player " + username + " is cached as premium, continuing vanilla auth");
             return true;
         }
 
         MojangApi.LookupResult lookup = MojangApi.lookupAccount(username);
         if (lookup.type == MojangApi.LookupResultType.ERROR) {
-            HeosLogger.warn("Mojang API lookup failed for " + username + ", falling back to Heos password login");
-            if (Heos.getConfig().allowOfflinePlayers) {
-                heos$acceptOfflineLogin(username);
-            } else {
-                heos$disconnectWithoutVanillaLogs(Component.literal(Messages.authServiceUnavailable()), Component.literal(Messages.offlineNameLogOnly()));
-            }
+            HeosLogger.warn("Mojang API lookup failed for " + username + ", refusing to guess account type");
+            heos$disconnectWithoutVanillaLogs(Component.literal(Messages.authServiceUnavailable()), Component.literal(Messages.offlineNameLogOnly()));
             return false;
         }
 
@@ -276,7 +272,13 @@ public abstract class ServerLoginNetworkHandlerMixin {
         if (!Heos.getConfig().allowOfflinePlayers || heos$loginUsername == null || heos$loginUsername.isBlank()) {
             return false;
         }
-        HeosLogger.warn("Premium authentication failed for " + heos$loginUsername + ", falling back to Heos password login");
+        MojangApi.LookupResult lookup = MojangApi.lookupAccount(heos$loginUsername);
+        if (lookup.type != MojangApi.LookupResultType.NOT_FOUND) {
+            HeosLogger.warn("Premium authentication failed for " + heos$loginUsername + ", refusing offline fallback for "
+                    + lookup.type + " Mojang account lookup");
+            return false;
+        }
+        HeosLogger.warn("Premium authentication failed for non-premium name " + heos$loginUsername + ", falling back to Heos password login");
         heos$acceptOfflineLogin(heos$loginUsername);
         return true;
     }

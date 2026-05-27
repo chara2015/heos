@@ -146,7 +146,7 @@ public abstract class ConnectionProtocolInfoMixin implements ConnectionProtocolI
             return false;
         }
 
-        if (!heos$isBlockedCompatibilityChannel(channel)) {
+        if (!heos$shouldBlockCompatibilityChannel(channel)) {
             return false;
         }
 
@@ -191,7 +191,7 @@ public abstract class ConnectionProtocolInfoMixin implements ConnectionProtocolI
     @Unique
     private CustomPacketPayload heos$filterOutboundPayload(CustomPacketPayload payload) {
         String channel = payload.type().id().toString();
-        if (heos$isBlockedCompatibilityChannel(channel)) {
+        if (heos$shouldBlockCompatibilityChannel(channel)) {
             HeosLogger.debug("Dropped server compatibility payload " + channel
                     + heos$protocolDescription());
             return null;
@@ -246,14 +246,14 @@ public abstract class ConnectionProtocolInfoMixin implements ConnectionProtocolI
     @Unique
     private List<?> heos$filterChannelList(List<?> channels) {
         boolean containsBlockedChannel = channels.stream()
-                .anyMatch(channel -> heos$isBlockedCompatibilityChannel(channel.toString()));
+                .anyMatch(channel -> heos$shouldBlockCompatibilityChannel(channel.toString()));
         if (!containsBlockedChannel) {
             return channels;
         }
 
         List<Object> filteredChannels = new ArrayList<>(channels.size());
         for (Object channel : channels) {
-            if (!heos$isBlockedCompatibilityChannel(channel.toString())) {
+            if (!heos$shouldBlockCompatibilityChannel(channel.toString())) {
                 filteredChannels.add(channel);
             }
         }
@@ -263,14 +263,14 @@ public abstract class ConnectionProtocolInfoMixin implements ConnectionProtocolI
     @Unique
     private Set<?> heos$filterChannelSet(Set<?> channels) {
         boolean containsBlockedChannel = channels.stream()
-                .anyMatch(channel -> heos$isBlockedCompatibilityChannel(channel.toString()));
+                .anyMatch(channel -> heos$shouldBlockCompatibilityChannel(channel.toString()));
         if (!containsBlockedChannel) {
             return channels;
         }
 
         Set<Object> filteredChannels = new LinkedHashSet<>();
         for (Object channel : channels) {
-            if (!heos$isBlockedCompatibilityChannel(channel.toString())) {
+            if (!heos$shouldBlockCompatibilityChannel(channel.toString())) {
                 filteredChannels.add(channel);
             }
         }
@@ -292,6 +292,11 @@ public abstract class ConnectionProtocolInfoMixin implements ConnectionProtocolI
             return " for Via-translated connection";
         }
         return "";
+    }
+
+    @Unique
+    private boolean heos$shouldBlockCompatibilityChannel(String channel) {
+        return heos$isCrossProtocol() && heos$isBlockedCompatibilityChannel(channel);
     }
 
     @Unique

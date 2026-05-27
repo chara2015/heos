@@ -5,8 +5,8 @@ package heos;
 public final class Heosmod {
     public static final String MOD_ID = "heos";
     public static final String MOD_NAME = "Heos Mod";
-    public static final String MOD_VERSION = "0.05";
-    public static final String MOD_DESCRIPTION = "A lightweight Minecraft server authentication mod with hybrid online/offline support";
+    public static final String MOD_VERSION = "0.06";
+    public static final String MOD_DESCRIPTION = "os";
     public static final String MOD_AUTHOR = "chara201x, chatgpt, claude";
     public static final String MOD_LICENSE = "MIT";
     public static final String MOD_HOMEPAGE = "https://github.com/chara2015/heos";

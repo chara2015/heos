@@ -62,7 +62,7 @@ val minecraftVersionLabel = when (supportedVersionsForArtifact.size) {
     else -> "${supportedVersionsForArtifact.first()}-${supportedVersionsForArtifact.last()}"
 }
 
-base.archivesName = "${modId}-mc$minecraftVersionLabel"
+base.archivesName = "${modId}-fabric-mc$minecraftVersionLabel"
 val releaseJarsDirectory = rootProject.layout.buildDirectory.dir("release-jars")
 
 val awFile = when {
@@ -195,9 +195,17 @@ tasks.processResources {
         filter {
             it.replace("accesswidener/heos.1.21.2.accesswidener", "accesswidener/$awFile")
         }
+        filter {
+            if (stonecutter.eval(stonecutter.current.version, ">=1.21.2")) {
+                it
+            } else {
+                it.replace("\"heos.mixins.json\",", "\"heos.mixins.json\"")
+                    .replace("    \"heos.bugfix.ghost_pearl.mixins.json\"", "")
+            }
+        }
     }
 
-    filesMatching("heos.mixins.json") {
+    filesMatching(listOf("heos.mixins.json", "heos.bugfix.ghost_pearl.mixins.json")) {
         filter {
             it.replace("\${refmap}", "${base.archivesName.get()}-refmap.json")
         }

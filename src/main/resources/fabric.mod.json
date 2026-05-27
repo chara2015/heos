@@ -21,7 +21,8 @@
   },
   "accessWidener": "accesswidener/heos.1.21.2.accesswidener",
   "mixins": [
-    "heos.mixins.json"
+    "heos.mixins.json",
+    "heos.bugfix.ghost_pearl.mixins.json"
   ],
   "depends": {
     "fabric-api": "*",
