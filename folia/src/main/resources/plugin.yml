@@ -1,7 +1,7 @@
 name: ${mod_id}
 version: ${version}
 main: heos.folia.HeosFoliaPlugin
-api-version: '1.21'
+api-version: '${api_version}'
 folia-supported: true
 author: ${mod_author}
 website: ${mod_homepage}

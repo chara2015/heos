@@ -26,7 +26,15 @@ val supportedFoliaVersions = mapOf(
     "1.21.5" to "1.21.5",
     "1.21.6" to "1.21.6-1.21.7",
     "1.21.8" to "1.21.8-1.21.10",
-    "1.21.11" to "1.21.11"
+    "1.21.11" to "1.21.11",
+    "26.1" to "26.1",
+    "26.1.1" to "26.1.1",
+    "26.1.2" to "26.1.2"
+)
+val foliaApiVersions = mapOf(
+    "26.1" to "26.1.2.build.8-stable",
+    "26.1.1" to "26.1.2.build.8-stable",
+    "26.1.2" to "26.1.2.build.8-stable"
 )
 
 subprojects {
@@ -42,7 +50,8 @@ subprojects {
     }
 
     dependencies {
-        "compileOnly"("dev.folia:folia-api:${project.name}-R0.1-SNAPSHOT")
+        val foliaApiVersion = foliaApiVersions[project.name] ?: "${project.name}-R0.1-SNAPSHOT"
+        "compileOnly"("dev.folia:folia-api:$foliaApiVersion")
         nettyCompileOnly("netty-buffer", "4.1.118.Final")
         nettyCompileOnly("netty-common", "4.1.118.Final")
         nettyCompileOnly("netty-transport", "4.1.118.Final")
@@ -50,10 +59,15 @@ subprojects {
         "implementation"("org.xerial:sqlite-jdbc:3.49.1.0")
     }
 
+    val isMinecraft26Plus = project.name.substringBefore('.').toIntOrNull()?.let { it >= 26 } == true
+    val javaVersion = if (isMinecraft26Plus) 25 else 21
+    val foliaArchiveBaseName = "${modId}-folia-mc${supportedFoliaVersions[project.name] ?: project.name}"
+
     extensions.configure<JavaPluginExtension>("java") {
         toolchain {
-            languageVersion.set(JavaLanguageVersion.of(21))
+            languageVersion.set(JavaLanguageVersion.of(javaVersion))
         }
+        withSourcesJar()
     }
 
     extensions.configure<SourceSetContainer>("sourceSets") {
@@ -65,7 +79,7 @@ subprojects {
 
     tasks.withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
-        options.release.set(21)
+        options.release.set(javaVersion)
     }
 
     tasks.withType<ProcessResources>().configureEach {
@@ -80,14 +94,24 @@ subprojects {
                     "mod_name" to modName,
                     "mod_description" to modDescription,
                     "mod_author" to modAuthor,
-                    "mod_homepage" to modHomepage
+                    "mod_homepage" to modHomepage,
+                    "api_version" to if (isMinecraft26Plus) project.name else "1.21"
                 )
             )
         }
     }
 
+    tasks.named<Jar>("sourcesJar") {
+        archiveBaseName.set(foliaArchiveBaseName)
+        archiveVersion.set(project.version.toString())
+    }
+
+    tasks.named<Jar>("jar") {
+        enabled = false
+    }
+
     tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
-        archiveBaseName.set("${modId}-folia-mc${supportedFoliaVersions[project.name] ?: project.name}")
+        archiveBaseName.set(foliaArchiveBaseName)
         archiveVersion.set(project.version.toString())
         archiveClassifier.set("")
     }
