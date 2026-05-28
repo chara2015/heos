@@ -5,7 +5,9 @@ import heos.bugfix.Ghost_Pearl.mixin.GhostPearlProjectileAccessor;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+//? if >= 1.21.6 {
 import net.minecraft.world.entity.EntityReference;
+//?}
 //? if >= 1.21.11 {
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
 //?} else {
@@ -139,8 +141,12 @@ public final class GhostPearlFix {
             return owner.getUUID();
         }
 
-        EntityReference<Entity> ownerReference = ((GhostPearlProjectileAccessor) pearl).heos$getOwnerReference();
+        //? if >= 1.21.6 {
+        EntityReference<Entity> ownerReference = ((GhostPearlProjectileAccessor) pearl).heos$getOwner();
         return ownerReference == null ? null : ownerReference.getUUID();
+        //?} else {
+        /*return ((GhostPearlProjectileAccessor) pearl).heos$getOwner();
+        *///?}
     }
 }
 //?}
