@@ -40,7 +40,10 @@ public final class FoliaStorage {
         try {
             Files.createDirectories(root);
             Class.forName("org.sqlite.JDBC");
-            connection = DriverManager.getConnection("jdbc:sqlite:" + root.resolve("player_data.db").toAbsolutePath());
+            Path database = FoliaStoragePaths.dataFile(root, "player_data.db");
+            FoliaStoragePaths.dataFile(root, "player_data.db-wal");
+            FoliaStoragePaths.dataFile(root, "player_data.db-shm");
+            connection = DriverManager.getConnection("jdbc:sqlite:" + database.toAbsolutePath());
             try (Statement statement = connection.createStatement()) {
                 statement.execute("PRAGMA journal_mode=WAL");
                 statement.execute("PRAGMA busy_timeout=5000");
@@ -211,7 +214,7 @@ public final class FoliaStorage {
         if (key != null) {
             return key;
         }
-        Path keyPath = root.resolve("secret.key");
+        Path keyPath = FoliaStoragePaths.dataFile(root, "secret.key");
         if (Files.exists(keyPath)) {
             byte[] keyBytes = Files.readAllBytes(keyPath);
             key = new SecretKeySpec(keyBytes, "AES");

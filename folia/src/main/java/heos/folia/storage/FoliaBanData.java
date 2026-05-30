@@ -23,9 +23,9 @@ public final class FoliaBanData {
     private transient Logger logger;
 
     public static FoliaBanData load(Path root, Logger logger) {
-        Path file = root.resolve("banned_player.json");
+        Path file;
         try {
-            Files.createDirectories(root);
+            file = FoliaStoragePaths.rootFile(root, "banned_player.json");
             if (!Files.exists(file)) {
                 FoliaBanData data = new FoliaBanData();
                 data.attach(file, logger);
@@ -45,7 +45,7 @@ public final class FoliaBanData {
         } catch (IOException exception) {
             logger.warning("Failed to load Heos bans: " + exception.getMessage());
             FoliaBanData data = new FoliaBanData();
-            data.attach(file, logger);
+            data.attach(root.resolve("banned_player.json"), logger);
             return data;
         }
     }

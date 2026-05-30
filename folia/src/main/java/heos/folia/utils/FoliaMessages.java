@@ -185,8 +185,16 @@ public final class FoliaMessages {
     }
 
     private static String allowedUsernamePattern() {
-        if (plugin != null && plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true)) {
+        if (plugin != null
+                && plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true)
+                && plugin.getConfig().getBoolean("allowUnicodeOfflineUsernameCharacters", true)) {
             return translate("text.heos.usernamePatternExtended");
+        }
+        if (plugin != null && plugin.getConfig().getBoolean("allowUnicodeOfflineUsernameCharacters", true)) {
+            return translate("text.heos.usernamePatternUnicode");
+        }
+        if (plugin != null && plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true)) {
+            return translate("text.heos.usernamePatternAdditional");
         }
         return translate("text.heos.usernamePatternSimple");
     }

@@ -11,6 +11,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.io.FileReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -25,7 +26,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Player data storage backed by server/heos/player_data.db.
+ * Player data storage backed by server/heos/data/player_data.db.
  */
 public class PlayerData {
     private static final Gson GSON = new GsonBuilder().create();
@@ -171,8 +172,9 @@ public class PlayerData {
         }
         try {
             Class.forName("org.sqlite.JDBC");
-            StoragePaths.ensureRoot();
-            File dbFile = StoragePaths.file(DB_FILE);
+            StoragePaths.ensureDataRoot();
+            File dbFile = StoragePaths.dataFile(DB_FILE);
+            migrateLegacyDatabaseFile(dbFile);
             connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
             try (Statement statement = connection.createStatement()) {
                 statement.execute("PRAGMA journal_mode=WAL");
@@ -192,6 +194,32 @@ public class PlayerData {
             migrateLegacyJsonData();
         } catch (Exception e) {
             HeosLogger.error("Failed to initialize player database", e);
+        }
+    }
+
+    private static void migrateLegacyDatabaseFile(File dbFile) {
+        if (dbFile.exists()) {
+            return;
+        }
+        File legacyFile = StoragePaths.file(DB_FILE);
+        if (!legacyFile.exists()) {
+            return;
+        }
+        try {
+            Files.move(legacyFile.toPath(), dbFile.toPath());
+            moveLegacyDatabaseSidecar(DB_FILE + "-wal");
+            moveLegacyDatabaseSidecar(DB_FILE + "-shm");
+            HeosLogger.debug("Migrated player database to " + dbFile.getPath());
+        } catch (Exception e) {
+            HeosLogger.error("Failed to migrate player database", e);
+        }
+    }
+
+    private static void moveLegacyDatabaseSidecar(String name) throws Exception {
+        File source = StoragePaths.file(name);
+        File target = StoragePaths.dataFile(name);
+        if (source.exists() && !target.exists()) {
+            Files.move(source.toPath(), target.toPath());
         }
     }
 
@@ -230,7 +258,7 @@ public class PlayerData {
             }
         }
         if (migrated > 0) {
-            HeosLogger.info("Migrated " + migrated + " legacy player data files into " + DB_FILE);
+            HeosLogger.debug("Migrated " + migrated + " legacy player data files into " + DB_FILE);
         }
     }
 
@@ -280,7 +308,7 @@ public class PlayerData {
         }
 
         if (migrated > 0) {
-            HeosLogger.info("Migrated " + migrated + " player data rows to the local secret key");
+            HeosLogger.debug("Migrated " + migrated + " player data rows to the local secret key");
         }
     }
 

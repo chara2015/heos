@@ -9,27 +9,21 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.server.ServerCommandEvent;
-import org.bukkit.plugin.Plugin;
 
 import java.util.Arrays;
 import java.util.Locale;
 
 public final class FoliaCommandInterceptor implements Listener {
-    private final Plugin plugin;
     private final FoliaAuthService authService;
     private final FoliaBanCommands banCommands;
 
-    public FoliaCommandInterceptor(Plugin plugin, FoliaAuthService authService, FoliaBanCommands banCommands) {
-        this.plugin = plugin;
+    public FoliaCommandInterceptor(FoliaAuthService authService, FoliaBanCommands banCommands) {
         this.authService = authService;
         this.banCommands = banCommands;
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
     void onPlayerCommand(PlayerCommandPreprocessEvent event) {
-        if (!plugin.getConfig().getBoolean("enableUnprefixedCommandHijack", true)) {
-            return;
-        }
         ParsedCommand parsed = parse(event.getMessage());
         if (parsed == null || !execute(event.getPlayer(), parsed.root, parsed.args)) {
             return;
@@ -39,9 +33,6 @@ public final class FoliaCommandInterceptor implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     void onServerCommand(ServerCommandEvent event) {
-        if (!plugin.getConfig().getBoolean("enableUnprefixedCommandHijack", true)) {
-            return;
-        }
         ParsedCommand parsed = parse(event.getCommand());
         if (parsed == null || !execute(event.getSender(), parsed.root, parsed.args)) {
             return;

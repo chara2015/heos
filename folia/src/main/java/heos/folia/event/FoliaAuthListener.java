@@ -49,7 +49,9 @@ public final class FoliaAuthListener implements Listener {
     void onPreLogin(AsyncPlayerPreLoginEvent event) {
         String username = event.getName();
         boolean allowMoreCharacters = plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true);
-        if (!FoliaMojangApi.isValidMojangUsername(username) && !FoliaMojangApi.isAllowedOfflineUsername(username, allowMoreCharacters)) {
+        boolean allowUnicodeCharacters = plugin.getConfig().getBoolean("allowUnicodeOfflineUsernameCharacters", true);
+        if (!FoliaMojangApi.isValidMojangUsername(username)
+                && !FoliaMojangApi.isAllowedOfflineUsername(username, allowMoreCharacters, allowUnicodeCharacters)) {
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, kickComponent(FoliaMessages.offlineNameHint()));
             return;
         }

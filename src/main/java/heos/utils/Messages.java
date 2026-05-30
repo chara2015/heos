@@ -186,8 +186,16 @@ public final class Messages {
     }
 
     private static String allowedUsernamePattern() {
-        if (Heos.getConfig() != null && Heos.getConfig().allowMoreOfflineUsernameCharacters) {
+        if (Heos.getConfig() != null
+                && Heos.getConfig().allowMoreOfflineUsernameCharacters
+                && Heos.getConfig().allowUnicodeOfflineUsernameCharacters) {
             return translate("text.heos.usernamePatternExtended");
+        }
+        if (Heos.getConfig() != null && Heos.getConfig().allowUnicodeOfflineUsernameCharacters) {
+            return translate("text.heos.usernamePatternUnicode");
+        }
+        if (Heos.getConfig() != null && Heos.getConfig().allowMoreOfflineUsernameCharacters) {
+            return translate("text.heos.usernamePatternAdditional");
         }
         return translate("text.heos.usernamePatternSimple");
     }

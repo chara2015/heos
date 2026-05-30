@@ -45,7 +45,7 @@ public final class FoliaLoginUsernameValidationBypassService implements AutoClos
         for (Channel channel : serverChannels()) {
             installServerChannel(channel);
         }
-        plugin.getLogger().info("Installed Folia login username validation bypass");
+        plugin.getLogger().fine("Installed Folia login username validation bypass");
     }
 
     @Override
@@ -143,7 +143,8 @@ public final class FoliaLoginUsernameValidationBypassService implements AutoClos
             return false;
         }
         boolean allowMoreCharacters = plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true);
-        if (!FoliaMojangApi.isAllowedOfflineUsername(username, allowMoreCharacters)) {
+        boolean allowUnicodeCharacters = plugin.getConfig().getBoolean("allowUnicodeOfflineUsernameCharacters", true);
+        if (!FoliaMojangApi.isAllowedOfflineUsername(username, allowMoreCharacters, allowUnicodeCharacters)) {
             plugin.getLogger().info(FoliaMessages.invalidOfflineNameLog() + ": " + username);
             return disconnectLogin(channel, FoliaMessages.offlineNameHint());
         }
@@ -220,7 +221,8 @@ public final class FoliaLoginUsernameValidationBypassService implements AutoClos
             return false;
         }
         boolean allowMoreCharacters = plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true);
-        return FoliaMojangApi.isAllowedOfflineUsername(username, allowMoreCharacters);
+        boolean allowUnicodeCharacters = plugin.getConfig().getBoolean("allowUnicodeOfflineUsernameCharacters", true);
+        return FoliaMojangApi.isAllowedOfflineUsername(username, allowMoreCharacters, allowUnicodeCharacters);
     }
 
     private boolean acceptOfflineLogin(Channel channel, String username) {

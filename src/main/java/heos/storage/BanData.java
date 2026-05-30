@@ -93,7 +93,7 @@ public class BanData {
                 data.ensureLists();
                 data.removeExpiredBans();
 
-                HeosLogger.info("Loaded " + data.playerBans.size() + " player bans and " + data.ipBans.size() + " IP bans from " + banFile.getPath());
+                HeosLogger.debug("Loaded " + data.playerBans.size() + " player bans and " + data.ipBans.size() + " IP bans from " + banFile.getPath());
                 return data;
             }
         } catch (IOException e) {
@@ -146,8 +146,12 @@ public class BanData {
     }
 
     public static void migrateLegacyBanFile() {
+        StoragePaths.ensureRoot();
         File banFile = StoragePaths.file(BAN_FILE);
-        File legacyFile = new File(heos.Heos.gameDirectory.toFile(), "heos_bans.json");
+        File legacyFile = StoragePaths.dataFile(BAN_FILE);
+        if (!legacyFile.exists()) {
+            legacyFile = new File(heos.Heos.gameDirectory.toFile(), "heos_bans.json");
+        }
         if (!banFile.exists() && legacyFile.exists()) {
             File parent = banFile.getParentFile();
             if (parent != null && !parent.exists()) {

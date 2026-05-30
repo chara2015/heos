@@ -32,8 +32,12 @@ public final class SecretKeyManager {
     }
 
     private static SecretKeySpec loadOrGenerateKey() throws IOException {
-        StoragePaths.ensureRoot();
-        File keyFile = StoragePaths.file(KEY_FILE);
+        StoragePaths.ensureDataRoot();
+        File keyFile = StoragePaths.dataFile(KEY_FILE);
+        File legacyKeyFile = StoragePaths.file(KEY_FILE);
+        if (!keyFile.exists() && legacyKeyFile.exists()) {
+            Files.move(legacyKeyFile.toPath(), keyFile.toPath());
+        }
         if (keyFile.exists()) {
             byte[] keyBytes = Files.readAllBytes(keyFile.toPath());
             if (keyBytes.length != 32) {
@@ -45,7 +49,7 @@ public final class SecretKeyManager {
         byte[] keyBytes = new byte[32];
         RANDOM.nextBytes(keyBytes);
         Files.write(keyFile.toPath(), keyBytes, StandardOpenOption.CREATE_NEW);
-        HeosLogger.info("Generated local player data encryption key at " + keyFile.getAbsolutePath());
+        HeosLogger.debug("Generated local player data encryption key at " + keyFile.getAbsolutePath());
         return new SecretKeySpec(keyBytes, "AES");
     }
 }

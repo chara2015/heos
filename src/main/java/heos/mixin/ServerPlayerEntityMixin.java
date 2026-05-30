@@ -222,7 +222,7 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
             if (heos$kickTimer <= 0 && player.connection.isAcceptingMessages()) {
                 player.connection.disconnect(Component.literal(Messages.loginTimeout()));
             } else {
-                if (heos$kickTimer % 200 == 0) {
+                if (heos$kickTimer % (Math.max(1, Heos.getConfig().loginReminderSeconds) * 20L) == 0) {
                     heos$sendAuthMessage();
                 }
                 --heos$kickTimer;

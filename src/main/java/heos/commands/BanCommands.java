@@ -13,6 +13,7 @@ import heos.utils.Messages;
 import heos.utils.TimeParser;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -29,7 +30,7 @@ public class BanCommands {
         if (!Heos.getConfig().enableCustomBan) {
             dispatcher.register(customUnbanCommand());
             dispatcher.register(customUnbanIpCommand());
-            HeosLogger.info("Custom ban disabled, keeping vanilla ban commands");
+            HeosLogger.debug("Custom ban disabled, keeping vanilla ban commands");
             return;
         }
 
@@ -44,13 +45,17 @@ public class BanCommands {
                 .requires(Permissions.requireLevel(3))
                 .executes(BanCommands::listBans)
         );
-        HeosLogger.info("Registered custom ban commands");
+        HeosLogger.debug("Registered custom ban commands");
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> customBanCommand() {
         return Commands.literal("ban")
                 .requires(Permissions.requireLevel(3))
                 .then(Commands.argument("player", StringArgumentType.string())
+                        .suggests((context, builder) -> SharedSuggestionProvider.suggest(
+                                context.getSource().getOnlinePlayerNames(),
+                                builder
+                        ))
                         .executes(ctx -> banPlayer(ctx, null, DEFAULT_BAN_REASON))
                         .then(Commands.argument("durationOrReason", StringArgumentType.string())
                                 .executes(ctx -> banPlayerFlexible(ctx,

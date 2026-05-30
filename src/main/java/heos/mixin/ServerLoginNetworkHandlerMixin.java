@@ -221,7 +221,11 @@ public abstract class ServerLoginNetworkHandlerMixin {
         if (MojangApi.isValidMojangUsername(username)) {
             return false;
         }
-        if (!MojangApi.isAllowedOfflineUsername(username, Heos.getConfig().allowMoreOfflineUsernameCharacters)) {
+        if (!MojangApi.isAllowedOfflineUsername(
+                username,
+                Heos.getConfig().allowMoreOfflineUsernameCharacters,
+                Heos.getConfig().allowUnicodeOfflineUsernameCharacters
+        )) {
             HeosLogger.info(Messages.invalidOfflineNameLog() + ": " + username);
             heos$disconnectWithoutVanillaLogs(Component.literal(Messages.offlineNameHint()), Component.literal(Messages.offlineNameLogOnly()));
             return true;

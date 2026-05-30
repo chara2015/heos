@@ -99,7 +99,7 @@ public final class MigrateCommand {
         if (Heos.getConfig().enablePlayerDataMigration) {
             return true;
         }
-        source.sendFailure(Component.literal("Player data migration is disabled in heos_config.json."));
+        source.sendFailure(Component.literal("Player data migration is disabled in config.yml."));
         return false;
     }
 
