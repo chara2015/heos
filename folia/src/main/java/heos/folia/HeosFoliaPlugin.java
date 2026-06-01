@@ -26,7 +26,6 @@ public final class HeosFoliaPlugin extends JavaPlugin {
             Map.entry("allowOfflinePlayers", "offline.allow-players"),
             Map.entry("allowMoreOfflineUsernameCharacters", "offline.allow-more-username-characters"),
             Map.entry("allowUnicodeOfflineUsernameCharacters", "offline.allow-unicode-username-characters"),
-            Map.entry("separateOnlineOfflineAccounts", "offline.separate-online-offline-accounts"),
             Map.entry("loginTimeout", "login.timeout-seconds"),
             Map.entry("loginReminderSeconds", "login.reminder-seconds"),
             Map.entry("minPasswordLength", "login.min-password-length"),
@@ -72,11 +71,11 @@ public final class HeosFoliaPlugin extends JavaPlugin {
         usernameValidationBypassService.install();
 
         this.authService = new FoliaAuthService(this, storage, tpsDisplayService);
-        FoliaBanCommands banCommands = new FoliaBanCommands(banData);
-        new heos.folia.utils.FoliaBanCleanupService(this, banData);
-        getServer().getPluginManager().registerEvents(new FoliaCommandInterceptor(authService, banCommands), this);
+        FoliaBanCommands banCommands = new FoliaBanCommands(banData, storage);
+        FoliaMigrationCommands migrationCommands = new FoliaMigrationCommands(this, storage, banData);
+        getServer().getPluginManager().registerEvents(new FoliaCommandInterceptor(authService, banCommands, migrationCommands), this);
         getServer().getPluginManager().registerEvents(new FoliaAuthListener(this, authService, banData, whitelistData), this);
-        registerCommands(banCommands);
+        registerCommands(banCommands, migrationCommands);
         boolean recipeViewerSyncEnabled = isRecipeViewerSyncEnabled();
         if (recipeViewerSyncEnabled) {
             this.recipeSyncService = new FoliaRecipeSyncService(this);
@@ -123,7 +122,7 @@ public final class HeosFoliaPlugin extends JavaPlugin {
         }
     }
 
-    private void registerCommands(FoliaBanCommands banCommands) {
+    private void registerCommands(FoliaBanCommands banCommands, FoliaMigrationCommands migrationCommands) {
         FoliaAuthCommands commands = new FoliaAuthCommands(authService);
         bind("login", commands);
         bind("register", commands);
@@ -135,7 +134,6 @@ public final class HeosFoliaPlugin extends JavaPlugin {
         bind("unban-ip", banCommands);
         bind("banlist", banCommands);
 
-        FoliaMigrationCommands migrationCommands = new FoliaMigrationCommands(this, storage, banData);
         bind("heos", new FoliaAdminCommands(this, storage, whitelistData, migrationCommands, authService, banCommands));
     }
 
@@ -152,7 +150,7 @@ public final class HeosFoliaPlugin extends JavaPlugin {
     }
 
     private boolean isRecipeViewerSyncEnabled() {
-        return getConfig().getBoolean("enableRecipeViewerSync", true)
+        return getConfig().getBoolean("enableRecipeViewerSync", false)
                 && compareMinecraftVersions(minecraftVersion(), "1.21.2") >= 0;
     }
 

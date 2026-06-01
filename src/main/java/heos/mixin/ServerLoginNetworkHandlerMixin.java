@@ -3,8 +3,8 @@ package heos.mixin;
 import com.mojang.authlib.GameProfile;
 import heos.Heos;
 import heos.integrations.MojangApi;
+import heos.interfaces.ConnectionProtocolInfo;
 import heos.storage.BanData;
-import heos.storage.PlayerData;
 import heos.utils.HeosLogger;
 import heos.utils.LoginFailureTracker;
 import heos.utils.Messages;
@@ -155,13 +155,30 @@ public abstract class ServerLoginNetworkHandlerMixin {
                 || normalized.contains("authentication servers are down")
                 || normalized.contains("multiplayer.disconnect.authservers_down")) {
             heos$pendingPremiumVerification = false;
-            if (heos$fallbackToPasswordLogin()) {
-                ci.cancel();
-                return;
-            }
             heos$disconnectWithoutVanillaLogs(Component.literal(Messages.authServiceUnavailable()), Component.literal(Messages.offlineNameLogOnly()));
             ci.cancel();
         }
+    }
+
+    //? if >= 1.20.5 {
+    @Inject(method = "finishLoginAndWaitForClient(Lcom/mojang/authlib/GameProfile;)V", at = @At("HEAD"))
+    private void heos$markVerifiedPremiumLogin(GameProfile profile, CallbackInfo ci) {
+        heos$markVerifiedPremiumLogin();
+    }
+    //?} else {
+    /*@Inject(method = "handleAcceptedLogin()V", at = @At("HEAD"))
+    private void heos$markVerifiedPremiumLogin(CallbackInfo ci) {
+        heos$markVerifiedPremiumLogin();
+    }
+    *///?}
+
+    @Unique
+    private void heos$markVerifiedPremiumLogin() {
+        if (!heos$pendingPremiumVerification) {
+            return;
+        }
+        ((ConnectionProtocolInfo) connection).heos$setVerifiedPremiumLogin(true);
+        heos$pendingPremiumVerification = false;
     }
 
     @Unique
@@ -243,12 +260,6 @@ public abstract class ServerLoginNetworkHandlerMixin {
 
     @Unique
     private boolean heos$shouldContinueVanillaPremiumFlow(String username) {
-        PlayerData data = Heos.getPlayerData(username, true);
-        if (data.isOnlineAccount && data.uuid != null) {
-            HeosLogger.debug("Player " + username + " is cached as premium, continuing vanilla auth");
-            return true;
-        }
-
         MojangApi.LookupResult lookup = MojangApi.lookupAccount(username);
         if (lookup.type == MojangApi.LookupResultType.ERROR) {
             HeosLogger.warn("Mojang API lookup failed for " + username + ", refusing to guess account type");
@@ -268,22 +279,6 @@ public abstract class ServerLoginNetworkHandlerMixin {
         }
 
         HeosLogger.info("Player " + username + " uses a premium name, deferring to vanilla authentication");
-        return true;
-    }
-
-    @Unique
-    private boolean heos$fallbackToPasswordLogin() {
-        if (!Heos.getConfig().allowOfflinePlayers || heos$loginUsername == null || heos$loginUsername.isBlank()) {
-            return false;
-        }
-        MojangApi.LookupResult lookup = MojangApi.lookupAccount(heos$loginUsername);
-        if (lookup.type != MojangApi.LookupResultType.NOT_FOUND) {
-            HeosLogger.warn("Premium authentication failed for " + heos$loginUsername + ", refusing offline fallback for "
-                    + lookup.type + " Mojang account lookup");
-            return false;
-        }
-        HeosLogger.warn("Premium authentication failed for non-premium name " + heos$loginUsername + ", falling back to Heos password login");
-        heos$acceptOfflineLogin(heos$loginUsername);
         return true;
     }
 

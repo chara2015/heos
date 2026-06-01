@@ -32,12 +32,11 @@ public class HeosConfig {
     private static final List<ConfigSection> SECTIONS = createSections();
 
     // Authentication settings
-    public boolean enableAuthentication = true;
-    public String language = "zh_cn";
-    public boolean allowOfflinePlayers = true;
-    public boolean allowMoreOfflineUsernameCharacters = true;
-    public boolean allowUnicodeOfflineUsernameCharacters = true;
-    public boolean separateOnlineOfflineAccounts = true;
+    public boolean enableAuthentication = false;
+    public String language = "auto";
+    public boolean allowOfflinePlayers = false;
+    public boolean allowMoreOfflineUsernameCharacters = false;
+    public boolean allowUnicodeOfflineUsernameCharacters = false;
     public int loginTimeout = 60; // seconds
     public int loginReminderSeconds = 10;
     public boolean enablePlayerDataMigration = false;
@@ -53,7 +52,7 @@ public class HeosConfig {
     public String sessionLimitKickMessage = "The online session limit for this IP has been reached";
 
     // Login failure protection
-    public boolean enableUsernameLoginFailureLock = true;
+    public boolean enableUsernameLoginFailureLock = false;
     public int usernameLoginFailureLimit = 5;
     public int usernameLoginFailureLockSeconds = 30;
     public boolean enableIpLoginFailureLock = false;
@@ -61,11 +60,12 @@ public class HeosConfig {
     public int ipLoginFailureLockSeconds = 30;
 
     // Display and integration settings
-    public boolean enableAutoLogTps = true;
+    public boolean enableAutoLogTps = false;
     public int autoLogTpsDelayTicks = 20;
     @SerializedName(value = "enableLogFilter", alternate = {"日志过滤"})
-    public boolean enableLogFilter = true;
-    public boolean enableRecipeViewerSync = true;
+    public boolean enableLogFilter = false;
+    public boolean enableRecipeViewerSync = false;
+    public boolean enableGhostPearlFix = false;
 
     // Ban settings
     public boolean enableCustomBan = false;
@@ -367,13 +367,12 @@ public class HeosConfig {
         return List.of(
                 new ConfigSection("auth", List.of(
                         entry("enabled", "enableAuthentication", "是否启用登录/注册认证。关闭后玩家无需使用 /login 或 /register。"),
-                        entry("language", "language", "语言文件代码，例如 zh_cn 或 en_us。多数提示文本会从对应语言文件读取。")
+                        entry("language", "language", "服务端消息语言。auto 表示根据运行服务器的电脑系统语言自动选择，也可填写 zh_cn 或 en_us 强制指定。\n玩家进入服务器后，提示消息会优先根据玩家客户端游戏语言自动选择。")
                 )),
                 new ConfigSection("offline", List.of(
                         entry("allow-players", "allowOfflinePlayers", "在线模式服务器中是否允许非正版玩家进入。关闭后只允许通过 Mojang 正版验证的玩家进入。"),
-                        entry("allow-more-username-characters", "allowMoreOfflineUsernameCharacters", "是否允许离线玩家名称在正版名称规则外额外使用 +、-、.。\n关闭后仅允许 A-Z、a-z、0-9、_，长度仍为 3-16。"),
-                        entry("allow-unicode-username-characters", "allowUnicodeOfflineUsernameCharacters", "是否允许离线玩家名称使用中文、其他语言字母和数字等 Unicode 字符。\n此设置可独立开启，不依赖 +、-、. 扩展字符设置。"),
-                        entry("separate-online-offline-accounts", "separateOnlineOfflineAccounts", "是否分离同名正版账号和离线账号的 Heos 登录数据，避免账号类型切换时覆盖注册信息。")
+                        entry("allow-more-username-characters", "allowMoreOfflineUsernameCharacters", "是否允许离线玩家名称在正版名称规则外额外使用 +、-、. 这三个字符。"),
+                        entry("allow-unicode-username-characters", "allowUnicodeOfflineUsernameCharacters", "是否允许离线玩家名称使用中文、其他语言字母和数字等 Unicode 字符。（开启后也会包括允许 +、-、. 这三个字符，并且所有正版规则外的字符不强制使用）")
                 )),
                 new ConfigSection("login", List.of(
                         entry("timeout-seconds", "loginTimeout", "玩家进入服务器后必须完成登录/注册的时间限制，单位为秒。"),
@@ -401,7 +400,8 @@ public class HeosConfig {
                         entry("tps-footer", "enableAutoLogTps", "是否在玩家列表页脚显示服务器 TPS 信息。"),
                         entry("tps-footer-delay-ticks", "autoLogTpsDelayTicks", "TPS 信息刷新间隔，单位为 tick。20 tick 约等于 1 秒。"),
                         entry("log-filter", "enableLogFilter", "是否启用日志过滤，隐藏登录、注册、改密等敏感命令内容。"),
-                        entry("recipe-viewer-sync", "enableRecipeViewerSync", "是否启用 JEI/REI 配方查看器同步。仅在支持的 Minecraft 版本上生效。")
+                        entry("recipe-viewer-sync", "enableRecipeViewerSync", "是否启用 JEI/REI 配方查看器同步。仅在支持的 Minecraft 版本上生效。"),
+                        entry("ghost-pearl-fix", "enableGhostPearlFix", "是否启用幽灵珍珠修复，避免末影珍珠重复保存或重复注册。仅 Fabric 端生效。")
                 ))
         );
     }

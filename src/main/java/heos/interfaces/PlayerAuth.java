@@ -71,6 +71,16 @@ public interface PlayerAuth {
     default boolean heos$isSameProtocol() {
         return heos$getClientProtocolVersion() == SharedConstants.getProtocolVersion();
     }
+
+    /**
+     * Gets the language reported by the player's Minecraft client.
+     */
+    String heos$getClientLanguage();
+
+    /**
+     * Stores the language reported by the player's Minecraft client.
+     */
+    void heos$setClientLanguage(String language);
     
     /**
      * Gets player data

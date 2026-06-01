@@ -48,14 +48,14 @@ public final class FoliaAuthListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     void onPreLogin(AsyncPlayerPreLoginEvent event) {
         String username = event.getName();
-        boolean allowMoreCharacters = plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", true);
-        boolean allowUnicodeCharacters = plugin.getConfig().getBoolean("allowUnicodeOfflineUsernameCharacters", true);
+        boolean allowMoreCharacters = plugin.getConfig().getBoolean("allowMoreOfflineUsernameCharacters", false);
+        boolean allowUnicodeCharacters = plugin.getConfig().getBoolean("allowUnicodeOfflineUsernameCharacters", false);
         if (!FoliaMojangApi.isValidMojangUsername(username)
                 && !FoliaMojangApi.isAllowedOfflineUsername(username, allowMoreCharacters, allowUnicodeCharacters)) {
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, kickComponent(FoliaMessages.offlineNameHint()));
             return;
         }
-        if (!authService.areOfflinePlayersAllowed() && !isPremiumUuid(username, event.getUniqueId())) {
+        if (!authService.areOfflinePlayersAllowed() && !authService.isPremiumUuid(username, event.getUniqueId())) {
             plugin.getLogger().info("Offline player is not allowed: " + username);
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, kickComponent(FoliaMessages.offlineNameHint()));
             return;
@@ -65,7 +65,7 @@ public final class FoliaAuthListener implements Listener {
             plugin.getLogger().info(FoliaMessages.whitelistDeniedLog(username));
             return;
         }
-        if (plugin.getConfig().getBoolean("enableCustomBan", true)) {
+        if (plugin.getConfig().getBoolean("enableCustomBan", false)) {
             FoliaBanData.BanEntry playerBan = banData.getPlayerBan(username, event.getUniqueId());
             if (playerBan != null) {
                 if (FoliaMessages.isMigrationReason(playerBan.reason)) {
@@ -80,11 +80,6 @@ public final class FoliaAuthListener implements Listener {
                 event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, kickComponent(FoliaMessages.banIpMessage(ipBan.reason, FoliaTimeParser.formatAbsolute(ipBan.expiryTime))));
             }
         }
-    }
-
-    private static boolean isPremiumUuid(String username, java.util.UUID uuid) {
-        java.util.UUID offline = java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        return uuid != null && !uuid.equals(offline);
     }
 
     private static Component kickComponent(String message) {
@@ -110,7 +105,7 @@ public final class FoliaAuthListener implements Listener {
         String command = event.getMessage().startsWith("/") ? event.getMessage().substring(1) : event.getMessage();
         if (!authService.canRunCommandWhileLocked(command)) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(ChatColor.RED + FoliaMessages.authPromptLogin());
+            event.getPlayer().sendMessage(ChatColor.RED + FoliaMessages.authPromptLogin(event.getPlayer()));
         }
     }
 
@@ -142,7 +137,7 @@ public final class FoliaAuthListener implements Listener {
     void onChat(AsyncPlayerChatEvent event) {
         if (authService.shouldBlock(event.getPlayer())) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(ChatColor.RED + FoliaMessages.authPromptLogin());
+            event.getPlayer().sendMessage(ChatColor.RED + FoliaMessages.authPromptLogin(event.getPlayer()));
         }
     }
 

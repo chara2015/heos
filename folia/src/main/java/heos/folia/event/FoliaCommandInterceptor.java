@@ -1,6 +1,8 @@
 package heos.folia.event;
 
 import heos.folia.commands.FoliaBanCommands;
+import heos.folia.commands.FoliaMigrationCommands;
+import heos.folia.utils.FoliaMessages;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -16,10 +18,12 @@ import java.util.Locale;
 public final class FoliaCommandInterceptor implements Listener {
     private final FoliaAuthService authService;
     private final FoliaBanCommands banCommands;
+    private final FoliaMigrationCommands migrationCommands;
 
-    public FoliaCommandInterceptor(FoliaAuthService authService, FoliaBanCommands banCommands) {
+    public FoliaCommandInterceptor(FoliaAuthService authService, FoliaBanCommands banCommands, FoliaMigrationCommands migrationCommands) {
         this.authService = authService;
         this.banCommands = banCommands;
+        this.migrationCommands = migrationCommands;
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -45,6 +49,7 @@ public final class FoliaCommandInterceptor implements Listener {
             case "login", "l" -> login(sender, args);
             case "register", "reg" -> register(sender, args);
             case "changepassword", "changepw" -> changePassword(sender, args);
+            case "heos-internal-migration" -> internalMigration(sender, args);
             case "ban", "ban-ip", "unban", "unban-ip", "banlist" -> banCommands.onSubcommand(sender, root, args);
             case "pardon" -> banCommands.onSubcommand(sender, "unban", args);
             case "pardon-ip" -> banCommands.onSubcommand(sender, "unban-ip", args);
@@ -52,13 +57,20 @@ public final class FoliaCommandInterceptor implements Listener {
         };
     }
 
+    private boolean internalMigration(CommandSender sender, String[] args) {
+        if (sender instanceof Player player && args.length == 2) {
+            migrationCommands.handleInternalAction(player, args[0], args[1]);
+        }
+        return true;
+    }
+
     private boolean login(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "This command can only be used by a player");
+            sender.sendMessage(ChatColor.RED + FoliaMessages.text(sender, "text.heos.playerOnlyCommand"));
             return true;
         }
         if (args.length != 1) {
-            sender.sendMessage(ChatColor.RED + "Usage: /login <password>");
+            sender.sendMessage(ChatColor.RED + FoliaMessages.text(sender, "text.heos.usageLogin"));
             return true;
         }
         authService.login(player, args[0]);
@@ -67,11 +79,11 @@ public final class FoliaCommandInterceptor implements Listener {
 
     private boolean register(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "This command can only be used by a player");
+            sender.sendMessage(ChatColor.RED + FoliaMessages.text(sender, "text.heos.playerOnlyCommand"));
             return true;
         }
         if (args.length != 2) {
-            sender.sendMessage(ChatColor.RED + "Usage: /register <password> <confirmPassword>");
+            sender.sendMessage(ChatColor.RED + FoliaMessages.text(sender, "text.heos.usageRegister"));
             return true;
         }
         authService.register(player, args[0], args[1]);
@@ -80,11 +92,11 @@ public final class FoliaCommandInterceptor implements Listener {
 
     private boolean changePassword(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "This command can only be used by a player");
+            sender.sendMessage(ChatColor.RED + FoliaMessages.text(sender, "text.heos.playerOnlyCommand"));
             return true;
         }
         if (args.length != 2) {
-            sender.sendMessage(ChatColor.RED + "Usage: /changepassword <oldPassword> <newPassword>");
+            sender.sendMessage(ChatColor.RED + FoliaMessages.text(sender, "text.heos.usageChangePassword"));
             return true;
         }
         authService.changePassword(player, args[0], args[1]);

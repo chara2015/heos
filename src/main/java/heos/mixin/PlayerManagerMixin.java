@@ -51,12 +51,12 @@ public abstract class PlayerManagerMixin {
         PlayerAuth authState = (PlayerAuth) player;
         String username = player.getName().getString();
 
-        if (heos$isSyntheticPlayer(player)) {
+        if (heos$isSyntheticPlayer(connection, player)) {
             heos$acceptSyntheticPlayer(authState, username);
             return;
         }
 
-        boolean onlineSession = heos$isVerifiedOnlineSession(player, username);
+        boolean onlineSession = heos$isVerifiedOnlineSession(connection, player, username);
         PlayerData storedData = Heos.getPlayerData(username, onlineSession);
         heos$prepareSession(authState, connection, storedData, username);
         if (heos$exceedsIpSessionLimit(player)) {
@@ -142,8 +142,8 @@ public abstract class PlayerManagerMixin {
         connectionInfo.heos$setDebugPlayerName(username);
     }
 
-    private boolean heos$isSyntheticPlayer(ServerPlayer player) {
-        return player.getClass() != ServerPlayer.class;
+    private boolean heos$isSyntheticPlayer(Connection connection, ServerPlayer player) {
+        return player.getClass() != ServerPlayer.class && connection.isMemoryConnection();
     }
 
     private void heos$acceptSyntheticPlayer(PlayerAuth authState, String username) {
@@ -156,17 +156,21 @@ public abstract class PlayerManagerMixin {
         HeosLogger.info("Authentication disabled, player " + username + " joined without auth");
     }
 
-    private boolean heos$isVerifiedOnlineSession(ServerPlayer player, String username) {
+    private boolean heos$isVerifiedOnlineSession(Connection connection, ServerPlayer player, String username) {
         return player.level().getServer().usesAuthentication()
+                && ((ConnectionProtocolInfo) connection).heos$isVerifiedPremiumLogin()
                 && !player.getUUID().equals(UUIDUtil.createOfflinePlayerUUID(username));
     }
 
     private void heos$acceptPremiumPlayer(ServerPlayer player, PlayerAuth authState, PlayerData storedData, String username) {
         heos$syncIdentity(storedData, true, player.getUUID());
+        storedData.lastIp = authState.heos$getIpAddress();
+        storedData.lastLoginTime = System.currentTimeMillis();
+        storedData.save();
         heos$markAuthenticationState(authState, true, true, true);
         HeosLogger.info("Premium player " + username + " joined, authentication skipped");
         if (authState.heos$isSameProtocol()) {
-            player.sendSystemMessage(Component.literal(Messages.premiumWelcome()), false);
+            player.sendSystemMessage(Component.literal(Messages.premiumWelcome(player)), false);
         } else {
             HeosLogger.debug("Skipped premium welcome message for cross-protocol player " + username);
         }

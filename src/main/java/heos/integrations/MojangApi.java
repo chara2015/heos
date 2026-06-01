@@ -167,7 +167,7 @@ public class MojangApi {
         }
         return username.codePoints().allMatch(codePoint ->
                 isAllowedUnicodeOfflineUsernameCodePoint(codePoint)
-                        || (allowMoreCharacters && isAdditionalOfflineUsernameCodePoint(codePoint))
+                        || isAdditionalOfflineUsernameCodePoint(codePoint)
         );
     }
 

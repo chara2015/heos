@@ -33,7 +33,7 @@ public final class FoliaAuthService {
 
     public void prepare(Player player) {
         boolean premium = isPremiumUuid(player);
-        FoliaPlayerData data = storage.load(player.getName(), premium, separateOnlineOfflineAccounts());
+        FoliaPlayerData data = storage.load(player.getName(), premium);
         if (!isAuthenticationEnabled()) {
             Session session = new Session(data, true);
             session.ip = FoliaPlayerAccess.ip(player);
@@ -54,7 +54,7 @@ public final class FoliaAuthService {
             sessions.put(player.getUniqueId(), session);
             updateLoginProtection(player, false);
             tpsDisplayService.start(player);
-            player.sendMessage(ChatColor.GREEN + FoliaMessages.premiumWelcome());
+            player.sendMessage(ChatColor.GREEN + FoliaMessages.premiumWelcome(player));
             return;
         }
 
@@ -62,15 +62,19 @@ public final class FoliaAuthService {
         sessions.put(player.getUniqueId(), new Session(data, false));
         updateLoginProtection(player, true);
         player.sendMessage(registered
-                ? ChatColor.YELLOW + FoliaMessages.loginInputHint()
-                : ChatColor.YELLOW + FoliaMessages.registerInputHint());
+                ? ChatColor.YELLOW + FoliaMessages.loginInputHint(player)
+                : ChatColor.YELLOW + FoliaMessages.registerInputHint(player));
         scheduleLoginTimeout(player);
         scheduleLoginReminder(player);
     }
 
     private boolean isPremiumUuid(Player player) {
-        UUID offline = UUID.nameUUIDFromBytes(("OfflinePlayer:" + player.getName()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        return !player.getUniqueId().equals(offline);
+        return isPremiumUuid(player.getName(), player.getUniqueId());
+    }
+
+    public boolean isPremiumUuid(String username, UUID uuid) {
+        UUID offline = UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return plugin.getServer().getOnlineMode() && uuid != null && !uuid.equals(offline);
     }
 
     public void remove(Player player) {
@@ -91,15 +95,11 @@ public final class FoliaAuthService {
     }
 
     public boolean isAuthenticationEnabled() {
-        return plugin.getConfig().getBoolean("enableAuthentication", true);
+        return plugin.getConfig().getBoolean("enableAuthentication", false);
     }
 
     public boolean areOfflinePlayersAllowed() {
-        return plugin.getConfig().getBoolean("allowOfflinePlayers", true);
-    }
-
-    public boolean separateOnlineOfflineAccounts() {
-        return plugin.getConfig().getBoolean("separateOnlineOfflineAccounts", true);
+        return plugin.getConfig().getBoolean("allowOfflinePlayers", false);
     }
 
     public boolean canRunCommandWhileLocked(String commandLine) {
@@ -112,19 +112,19 @@ public final class FoliaAuthService {
         FoliaPlayerData data = session.data;
         String ip = FoliaPlayerAccess.ip(player);
         if (failureTracker.isBlocked(player.getName(), ip)) {
-            FoliaDisconnects.disconnect(player, failureTracker.blockMessage(player.getName(), ip), "HEOS_LOGIN_FAILURE_LOCK");
+            FoliaDisconnects.disconnect(player, failureTracker.blockMessage(player, player.getName(), ip), "HEOS_LOGIN_FAILURE_LOCK");
             return;
         }
         if (!data.isRegistered()) {
-            player.sendMessage(ChatColor.RED + FoliaMessages.notRegistered());
+            player.sendMessage(ChatColor.RED + FoliaMessages.notRegistered(player));
             return;
         }
         if (!FoliaPasswordHasher.verifyPassword(password, data.passwordHash)) {
             if (failureTracker.recordFailure(player.getName(), ip)) {
-                FoliaDisconnects.disconnect(player, failureTracker.blockMessage(player.getName(), ip), "HEOS_LOGIN_FAILURE_LOCK");
+                FoliaDisconnects.disconnect(player, failureTracker.blockMessage(player, player.getName(), ip), "HEOS_LOGIN_FAILURE_LOCK");
                 return;
             }
-            player.sendMessage(ChatColor.RED + FoliaMessages.wrongPassword());
+            player.sendMessage(ChatColor.RED + FoliaMessages.wrongPassword(player));
             return;
         }
         if (!markAuthenticated(player, session)) {
@@ -137,28 +137,28 @@ public final class FoliaAuthService {
             data.passwordHash = FoliaPasswordHasher.hashPassword(password);
         }
         storage.save(data);
-        player.sendMessage(ChatColor.GREEN + FoliaMessages.loginSuccess());
+        player.sendMessage(ChatColor.GREEN + FoliaMessages.loginSuccess(player));
     }
 
     public void register(Player player, String password, String confirmPassword) {
         Session session = session(player);
         FoliaPlayerData data = session.data;
         if (data.isRegistered()) {
-            player.sendMessage(ChatColor.RED + FoliaMessages.alreadyRegistered());
+            player.sendMessage(ChatColor.RED + FoliaMessages.alreadyRegistered(player));
             return;
         }
         if (!password.equals(confirmPassword)) {
-            player.sendMessage(ChatColor.RED + FoliaMessages.passwordMismatch());
+            player.sendMessage(ChatColor.RED + FoliaMessages.passwordMismatch(player));
             return;
         }
         int min = plugin.getConfig().getInt("minPasswordLength", 4);
         int max = plugin.getConfig().getInt("maxPasswordLength", 32);
         if (password.length() < min) {
-            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooShort().formatted(min));
+            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooShort(player).formatted(min));
             return;
         }
         if (password.length() > max) {
-            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooLong().formatted(max));
+            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooLong(player).formatted(max));
             return;
         }
         data.uuid = player.getUniqueId();
@@ -171,37 +171,37 @@ public final class FoliaAuthService {
             return;
         }
         storage.save(data);
-        player.sendMessage(ChatColor.GREEN + FoliaMessages.registerSuccess());
+        player.sendMessage(ChatColor.GREEN + FoliaMessages.registerSuccess(player));
     }
 
     public void changePassword(Player player, String oldPassword, String newPassword) {
         Session session = session(player);
         if (!session.authenticated) {
-            player.sendMessage(ChatColor.RED + FoliaMessages.authPromptLogin());
+            player.sendMessage(ChatColor.RED + FoliaMessages.authPromptLogin(player));
             return;
         }
         FoliaPlayerData data = session.data;
         if (!FoliaPasswordHasher.verifyPassword(oldPassword, data.passwordHash)) {
-            player.sendMessage(ChatColor.RED + FoliaMessages.wrongPassword());
+            player.sendMessage(ChatColor.RED + FoliaMessages.wrongPassword(player));
             return;
         }
         if (oldPassword.equals(newPassword)) {
-            player.sendMessage(ChatColor.RED + "New password cannot be the same as the old password");
+            player.sendMessage(ChatColor.RED + FoliaMessages.newPasswordSameAsOld(player));
             return;
         }
         int min = plugin.getConfig().getInt("minPasswordLength", 4);
         int max = plugin.getConfig().getInt("maxPasswordLength", 32);
         if (newPassword.length() < min) {
-            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooShort().formatted(min));
+            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooShort(player).formatted(min));
             return;
         }
         if (newPassword.length() > max) {
-            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooLong().formatted(max));
+            player.sendMessage(ChatColor.RED + FoliaMessages.passwordTooLong(player).formatted(max));
             return;
         }
         data.passwordHash = FoliaPasswordHasher.hashPassword(newPassword);
         storage.save(data);
-        player.sendMessage(ChatColor.GREEN + FoliaMessages.keepPasswordSafe());
+        player.sendMessage(ChatColor.GREEN + FoliaMessages.keepPasswordSafe(player));
     }
 
     public void close() {
@@ -213,7 +213,7 @@ public final class FoliaAuthService {
         int timeoutSeconds = Math.max(1, plugin.getConfig().getInt("loginTimeout", 60));
         player.getScheduler().runDelayed(plugin, task -> {
             if (player.isOnline() && shouldBlock(player)) {
-                FoliaDisconnects.disconnect(player, FoliaMessages.loginTimeout(), "HEOS_LOGIN_TIMEOUT");
+                FoliaDisconnects.disconnect(player, FoliaMessages.loginTimeout(player), "HEOS_LOGIN_TIMEOUT");
             }
         }, null, timeoutSeconds * 20L);
     }
@@ -226,8 +226,8 @@ public final class FoliaAuthService {
             }
             FoliaPlayerData data = session(player).data;
             player.sendMessage(data.isRegistered()
-                    ? ChatColor.YELLOW + FoliaMessages.loginInputHint()
-                    : ChatColor.YELLOW + FoliaMessages.registerInputHint());
+                    ? ChatColor.YELLOW + FoliaMessages.loginInputHint(player)
+                    : ChatColor.YELLOW + FoliaMessages.registerInputHint(player));
             scheduleLoginReminder(player);
         }, null, reminderSeconds * 20L);
     }
@@ -235,7 +235,7 @@ public final class FoliaAuthService {
     private Session session(Player player) {
         boolean premium = isPremiumUuid(player);
         return sessions.computeIfAbsent(player.getUniqueId(), ignored -> new Session(
-                storage.load(player.getName(), premium, separateOnlineOfflineAccounts()),
+                storage.load(player.getName(), premium),
                 false
         ));
     }

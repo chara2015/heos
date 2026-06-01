@@ -11,6 +11,11 @@ import net.minecraft.SharedConstants;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
+//? if >= 1.20.5 {
+import net.minecraft.server.level.ClientInformation;
+//?} else {
+/*import net.minecraft.network.protocol.game.ServerboundClientInformationPacket;
+*///?}
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
@@ -44,6 +49,9 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
 
     @Unique
     private int heos$clientProtocolVersion = SharedConstants.getProtocolVersion();
+
+    @Unique
+    private String heos$clientLanguage = "";
 
     @Unique
     private PlayerData heos$playerData = null;
@@ -156,6 +164,16 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
     }
 
     @Override
+    public String heos$getClientLanguage() {
+        return this.heos$clientLanguage;
+    }
+
+    @Override
+    public void heos$setClientLanguage(String language) {
+        this.heos$clientLanguage = language == null ? "" : language;
+    }
+
+    @Override
     public PlayerData heos$getPlayerData() {
         return this.heos$playerData;
     }
@@ -179,9 +197,9 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
         heos$lastAuthPromptTick = currentTick;
 
         if (heos$playerData.isRegistered()) {
-            player.sendSystemMessage(Component.literal(Messages.authPromptLogin()), false);
+            player.sendSystemMessage(Component.literal(Messages.authPromptLogin(player)), false);
         } else {
-            player.sendSystemMessage(Component.literal(Messages.authPromptRegister()), false);
+            player.sendSystemMessage(Component.literal(Messages.authPromptRegister(player)), false);
         }
     }
 
@@ -220,7 +238,7 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
             }
 
             if (heos$kickTimer <= 0 && player.connection.isAcceptingMessages()) {
-                player.connection.disconnect(Component.literal(Messages.loginTimeout()));
+                player.connection.disconnect(Component.literal(Messages.loginTimeout(player)));
             } else {
                 if (heos$kickTimer % (Math.max(1, Heos.getConfig().loginReminderSeconds) * 20L) == 0) {
                     heos$sendAuthMessage();
@@ -265,5 +283,17 @@ public abstract class ServerPlayerEntityMixin implements PlayerAuth {
         newAuth.heos$setConnection(oldAuth.heos$getConnection());
         newAuth.heos$setIpAddress(oldAuth.heos$getIpAddress());
         newAuth.heos$setClientProtocolVersion(oldAuth.heos$getClientProtocolVersion());
+        newAuth.heos$setClientLanguage(oldAuth.heos$getClientLanguage());
     }
+
+    @Inject(method = "updateOptions", at = @At("HEAD"))
+    //? if >= 1.20.5 {
+    private void heos$storeClientLanguage(ClientInformation information, CallbackInfo ci) {
+        heos$setClientLanguage(information.language());
+    }
+    //?} else {
+    /*private void heos$storeClientLanguage(ServerboundClientInformationPacket packet, CallbackInfo ci) {
+        heos$setClientLanguage(packet.language());
+    }
+    *///?}
 }
