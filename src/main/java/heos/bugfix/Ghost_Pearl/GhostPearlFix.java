@@ -2,7 +2,7 @@ package heos.bugfix.Ghost_Pearl;
 
 //? if >= 1.21.2 {
 import heos.Heos;
-import heos.bugfix.Ghost_Pearl.mixin.GhostPearlProjectileAccessor;
+import heos.mixin.GhostPearlProjectileAccessor;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;

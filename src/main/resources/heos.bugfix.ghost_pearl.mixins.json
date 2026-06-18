@@ -3,9 +3,9 @@
   "package": "heos.bugfix.Ghost_Pearl.mixin",
   "compatibilityLevel": "JAVA_17",
   "server": [
-    "GhostPearlServerPlayerMixin",
-    "GhostPearlEntitySaveMixin",
-    "GhostPearlProjectileAccessor"
+    "heos.mixin.GhostPearlServerPlayerMixin",
+    "heos.mixin.GhostPearlEntitySaveMixin",
+    "heos.mixin.GhostPearlProjectileAccessor"
   ],
   "minVersion": "0.8",
   "injectors": {
