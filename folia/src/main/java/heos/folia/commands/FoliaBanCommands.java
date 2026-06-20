@@ -14,6 +14,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -91,7 +93,12 @@ public final class FoliaBanCommands implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        String ip = args[0];
+        String target = args[0];
+        String ip = resolveIp(target);
+        if (ip == null) {
+            sender.sendMessage(ChatColor.RED + FoliaMessages.text(sender, "text.heos.playerIpNotFound", target));
+            return true;
+        }
         banData.addIpBan(ip, parsed.reason, parsed.expiryTime, sender.getName());
         sender.sendMessage(ChatColor.GREEN + FoliaMessages.text(sender, "text.heos.bannedIp", ip));
         sender.sendMessage(ChatColor.GRAY + FoliaMessages.text(sender, "text.heos.banReason", parsed.reason));
@@ -100,6 +107,47 @@ public final class FoliaBanCommands implements CommandExecutor, TabCompleter {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (ip.equals(FoliaPlayerAccess.ip(player))) {
                 FoliaDisconnects.disconnect(player, banIpMessage(player, parsed.reason, parsed.expiryTime), "HEOS_IP_BAN");
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Keeps literal IP addresses untouched, while allowing a player ID to resolve
+     * to the last address stored by HEOS.
+     */
+    private String resolveIp(String target) {
+        if (isIpAddress(target)) {
+            return target;
+        }
+
+        var playerData = storage.loadStored(target);
+        if (playerData == null || playerData.lastIp == null || playerData.lastIp.isBlank()) {
+            return null;
+        }
+        return playerData.lastIp;
+    }
+
+    private static boolean isIpAddress(String value) {
+        if (value.indexOf(':') >= 0) {
+            try {
+                return InetAddress.getByName(value) instanceof Inet6Address;
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        String[] parts = value.split("\\.", -1);
+        if (parts.length != 4) {
+            return false;
+        }
+        for (String part : parts) {
+            try {
+                if (part.isEmpty() || !part.chars().allMatch(Character::isDigit) || Integer.parseInt(part) > 255) {
+                    return false;
+                }
+            } catch (NumberFormatException ignored) {
+                return false;
             }
         }
         return true;

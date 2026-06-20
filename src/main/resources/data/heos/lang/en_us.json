@@ -79,6 +79,7 @@
   "text.heos.defaultBanReason": "You are banned",
   "text.heos.bannedPlayer": "Banned player %s.",
   "text.heos.bannedIp": "Banned IP %s.",
+  "text.heos.playerIpNotFound": "No IP record was found for player %s.",
   "text.heos.banReason": "Reason: %s",
   "text.heos.banDuration": "Duration: %s",
   "text.heos.unbanned": "Unbanned %s.",

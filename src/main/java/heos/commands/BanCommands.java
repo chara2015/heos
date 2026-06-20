@@ -8,6 +8,7 @@ import com.mojang.brigadier.tree.CommandNode;
 import heos.Heos;
 import heos.integrations.Permissions;
 import heos.storage.BanData;
+import heos.storage.PlayerData;
 import heos.utils.HeosLogger;
 import heos.utils.Messages;
 import heos.utils.TimeParser;
@@ -17,6 +18,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.lang.reflect.Field;
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -151,7 +154,12 @@ public class BanCommands {
 
     private static int banIp(CommandContext<CommandSourceStack> context, String timeStr, String reason) {
         CommandSourceStack source = context.getSource();
-        String targetIp = StringArgumentType.getString(context, "ip");
+        String target = StringArgumentType.getString(context, "ip");
+        String targetIp = resolveIp(target);
+        if (targetIp == null) {
+            source.sendFailure(Component.literal(Messages.text(source, "text.heos.playerIpNotFound", target)));
+            return 0;
+        }
 
         long expiryTime = -1;
         if (timeStr != null) {
@@ -180,6 +188,47 @@ public class BanCommands {
         }
 
         return 1;
+    }
+
+    /**
+     * Keeps literal IP addresses untouched, while allowing a player ID to resolve
+     * to the last address stored by HEOS.
+     */
+    private static String resolveIp(String target) {
+        if (isIpAddress(target)) {
+            return target;
+        }
+
+        PlayerData playerData = PlayerData.loadStored(target);
+        if (playerData == null || playerData.lastIp == null || playerData.lastIp.isBlank()) {
+            return null;
+        }
+        return playerData.lastIp;
+    }
+
+    private static boolean isIpAddress(String value) {
+        if (value.indexOf(':') >= 0) {
+            try {
+                return InetAddress.getByName(value) instanceof Inet6Address;
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        String[] parts = value.split("\\.", -1);
+        if (parts.length != 4) {
+            return false;
+        }
+        for (String part : parts) {
+            try {
+                if (part.isEmpty() || !part.chars().allMatch(Character::isDigit) || Integer.parseInt(part) > 255) {
+                    return false;
+                }
+            } catch (NumberFormatException ignored) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static ParsedBanArgs parseBanArgs(CommandSourceStack source, String durationOrReason, String reasonTail) {

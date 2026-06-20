@@ -79,6 +79,7 @@
   "text.heos.defaultBanReason": "\u4f60\u5df2\u88ab\u5c01\u7981",
   "text.heos.bannedPlayer": "\u5df2\u5c01\u7981\u73a9\u5bb6 %s\u3002",
   "text.heos.bannedIp": "\u5df2\u5c01\u7981 IP %s\u3002",
+  "text.heos.playerIpNotFound": "\u627e\u4e0d\u5230\u73a9\u5bb6 %s \u7684 IP \u8bb0\u5f55\u3002",
   "text.heos.banReason": "\u539f\u56e0\uff1a%s",
   "text.heos.banDuration": "\u6301\u7eed\u65f6\u95f4\uff1a%s",
   "text.heos.unbanned": "\u5df2\u89e3\u5c01 %s\u3002",
